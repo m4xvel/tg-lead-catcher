@@ -1,0 +1,29 @@
+[project]
+name = "tg-lead-catcher"
+version = "0.1.0"
+description = "Userbot + панель для отлова лидов в Telegram по ключевым словам"
+requires-python = ">=3.11"
+dependencies = [
+    "telethon>=1.36",
+    "aiogram>=3.13",
+    "aiosqlite>=0.20",
+    "aiohttp>=3.9",
+    "tzdata>=2024.1; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["matcher", "store", "store.repositories", "userbot", "worker"]
