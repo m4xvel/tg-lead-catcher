@@ -147,3 +147,22 @@ async def test_own_bot_and_receiver_chat_messages_never_hit(repos, ruleset):
         await client.fire(events.NewMessage, event)
 
     assert await repos["hits"].list() == []
+
+
+async def test_monitoring_paused_ignores_new_matching_message(repos, ruleset):
+    """R48: глобальная пауза мониторинга останавливает live-обработку — не пишет hits/delivery_queue."""
+    await repos["sources"].add(chat_id=100, title="Чат", kind="group")
+    await repos["receivers"].add(chat_id=201, title="Приёмник")
+    await repos["settings"].set("monitoring_paused", "1")
+
+    client = FakeTelegramClient()
+    register_handlers(client, make_deps(repos, ruleset))
+
+    event = FakeEvent(
+        chat_id=100, id=1, raw_text="нужен ремонт квартиры", sender_id=500,
+        sender=FakeSender(id=500, username="ivan"),
+    )
+    await client.fire(events.NewMessage, event)
+
+    assert await repos["hits"].list() == []
+    assert await repos["delivery_queue"].list() == []

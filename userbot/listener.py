@@ -7,7 +7,11 @@
 
 Реальный Telethon-клиент и его события — деталь `register_handlers`; сам пайплайн
 (`process`) работает с нормализованным `IncomingMessage` и ничего не знает про
-Telethon, поэтому тестируется без сети.
+Telethon, поэтому тестируется без сети. `process()` также переиспользуется
+догоном/сканом истории (`catchup.py`), поэтому глобальная пауза мониторинга
+(R48, `settings.monitoring_paused`) проверяется не в нём, а в `_handle` —
+точке входа именно live-событий из `register_handlers`; догон/скан истории
+по спеке (§6/§7, R35/R54/R36/R78i) формируют историю независимо от тумблера.
 """
 from __future__ import annotations
 
@@ -195,6 +199,13 @@ def register_handlers(client, deps: Deps) -> None:
 
 
 async def _handle(msg: IncomingMessage, deps: Deps) -> None:
+    """Точка входа live-событий (`register_handlers`) — тут, а не в `process()`,
+    проверяется глобальная пауза мониторинга (R48): `process()` переиспользуется
+    и догоном/сканом истории (`catchup.py`), которые по спеке §6/§7 должны
+    формировать историю независимо от тумблера live-обработки.
+    """
+    if (await deps.settings.get("monitoring_paused", "0")) == "1":
+        return None
     await process(
         msg,
         sources=deps.sources,
