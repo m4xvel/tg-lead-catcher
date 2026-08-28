@@ -10,7 +10,14 @@ import itertools
 import pytest
 from aiogram import Bot
 from aiogram.client.session.base import BaseSession
-from aiogram.methods import AnswerCallbackQuery, EditMessageText, GetChat, SendMessage, TelegramMethod
+from aiogram.methods import (
+    AnswerCallbackQuery,
+    EditMessageText,
+    GetChat,
+    SendDocument,
+    SendMessage,
+    TelegramMethod,
+)
 from aiogram.types import Chat, Message, Update
 
 import store
@@ -54,6 +61,12 @@ class FakeSession(BaseSession):
             )
         if isinstance(method, AnswerCallbackQuery):
             return True
+        if isinstance(method, SendDocument):
+            # Тикет 05 (`/export`, R55): фейковый ответ на отправку файла — сам
+            # файл (`method.document`) тесты читают из `self.calls`, не отсюда.
+            return Message(
+                message_id=next(self._msg_ids), date=0, chat=Chat(id=method.chat_id, type="private")
+            )
         raise AssertionError(f"неожиданный метод Bot API в тесте: {method}")
 
 

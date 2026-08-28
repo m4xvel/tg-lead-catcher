@@ -38,6 +38,35 @@ BTN_PREV = "‹"
 BTN_NEXT = "›"
 NOOP = "noop"
 
+# --- тикет 05: ключи/минус-слова, статус/статистика/история ------------------
+TARGET_KEYWORD = "keyword"
+TARGET_STOPWORD = "stopword"
+
+BTN_KEYWORDS = "🔑 Ключевые слова"
+BTN_STOPWORDS = "🚫 Минус-слова"
+BTN_STATUS = "📈 Статус"
+BTN_STATS = "📊 Статистика"
+BTN_TOP = "📊 Топ мусорных ключей"
+BTN_HISTORY = "🕐 История"
+BTN_ADD_KEYWORDS = "➕ Добавить"
+BTN_CHECK = "🧪 Проверить"
+BTN_YES = "Да"
+BTN_NO = "Нет"
+BTN_STATS_7D = "7 дней"
+BTN_STATS_30D = "30 дней"
+
+
+class CheckStartCB(CallbackData, prefix="chk"):
+    pass
+
+
+class ResumeConfirmCB(CallbackData, prefix="rsc"):
+    answer: str  # yes | no
+
+
+class StatsPeriodCB(CallbackData, prefix="sp"):
+    days: int
+
 
 class AddMethodCB(CallbackData, prefix="am"):
     target: str
@@ -100,6 +129,11 @@ def main_menu_kb(*, monitoring_paused: bool) -> ReplyKeyboardMarkup:
         keyboard=[
             [KeyboardButton(text=BTN_SOURCES), KeyboardButton(text=BTN_RECEIVERS)],
             [KeyboardButton(text=toggle)],
+            # Тикет 05: разделы ключей/статуса/статистики/истории — новая строка,
+            # существующие ряды выше не тронуты.
+            [KeyboardButton(text=BTN_KEYWORDS), KeyboardButton(text=BTN_STOPWORDS)],
+            [KeyboardButton(text=BTN_STATUS), KeyboardButton(text=BTN_STATS)],
+            [KeyboardButton(text=BTN_TOP), KeyboardButton(text=BTN_HISTORY)],
         ],
         resize_keyboard=True,
     )
@@ -207,4 +241,55 @@ def list_page_kb(
     b.row(InlineKeyboardButton(text=BTN_ADD, callback_data=AddStartCB(target=target).pack()))
     if show_favorite:
         b.row(InlineKeyboardButton(text=BTN_FAVORITE, callback_data=FavoriteAddCB().pack()))
+    return b.as_markup()
+
+
+def keyword_list_kb(target: str, items, offset: int = 0, *, page_size: int = PAGE_SIZE) -> InlineKeyboardMarkup:
+    """Список ключей/минус-слов (R44-R47): ❌ на каждый, построчное добавление, проверка."""
+    b = InlineKeyboardBuilder()
+    page = items[offset : offset + page_size]
+    for item in page:
+        b.row(
+            InlineKeyboardButton(text=truncate(item.pattern, 32), callback_data=NOOP),
+            InlineKeyboardButton(
+                text="❌", callback_data=DeleteCB(target=target, id=item.id).pack()
+            ),
+        )
+    nav = []
+    if offset > 0:
+        nav.append(
+            InlineKeyboardButton(
+                text=BTN_PREV,
+                callback_data=ListPageCB(target=target, offset=max(0, offset - page_size)).pack(),
+            )
+        )
+    if offset + page_size < len(items):
+        nav.append(
+            InlineKeyboardButton(
+                text=BTN_NEXT,
+                callback_data=ListPageCB(target=target, offset=offset + page_size).pack(),
+            )
+        )
+    if nav:
+        b.row(*nav)
+    b.row(InlineKeyboardButton(text=BTN_ADD_KEYWORDS, callback_data=AddStartCB(target=target).pack()))
+    b.row(InlineKeyboardButton(text=BTN_CHECK, callback_data=CheckStartCB().pack()))
+    return b.as_markup()
+
+
+def resume_confirm_kb() -> InlineKeyboardMarkup:
+    """Вопрос о догоне при снятии глобальной паузы (R53): [Да]/[Нет]."""
+    b = InlineKeyboardBuilder()
+    b.button(text=BTN_YES, callback_data=ResumeConfirmCB(answer="yes"))
+    b.button(text=BTN_NO, callback_data=ResumeConfirmCB(answer="no"))
+    b.adjust(2)
+    return b.as_markup()
+
+
+def stats_period_kb(days: int) -> InlineKeyboardMarkup:
+    """Переключатель периода статистики (R50): 7/30 дней."""
+    b = InlineKeyboardBuilder()
+    b.button(text=BTN_STATS_7D, callback_data=StatsPeriodCB(days=7))
+    b.button(text=BTN_STATS_30D, callback_data=StatsPeriodCB(days=30))
+    b.adjust(2)
     return b.as_markup()
