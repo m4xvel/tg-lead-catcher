@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+node_modules/
+__pycache__/
+.DS_Store
+.autopilot/serve.*
+
+# tg-lead-catcher: данные и сессия userbot (R66)
+./data/
+*.session
