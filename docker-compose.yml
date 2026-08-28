@@ -1,0 +1,23 @@
+# Переезд на VPS — одной командой: `docker compose up -d` после `python setup.py` (пишет .env).
+# Оба сервиса перезапускаются сами (restart: unless-stopped, R65) и делят ./data/ —
+# там SQLite (bot.db) и *.session userbot'а.
+services:
+  userbot:
+    build: .
+    command: python -m userbot.main
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+
+  panel:
+    build: .
+    command: python -m panel.main
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - userbot
