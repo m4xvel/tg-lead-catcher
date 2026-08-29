@@ -30,6 +30,7 @@ from . import export as export_router_module
 from . import keyboards
 from . import keywords as keywords_router_module
 from . import receivers as receivers_router_module
+from . import settings as settings_router_module
 from . import sources as sources_router_module
 from . import stats as stats_router_module
 
@@ -52,6 +53,9 @@ def build_router(owner_id: int) -> Router:
     root.include_router(stats_router_module.build_router())
     root.include_router(keywords_router_module.build_router())
     root.include_router(export_router_module.build_router())
+    # Тикет 09: настройки — не участвует в конфликте кнопок R53, порядок
+    # относительно sources/receivers не важен, безопасно добавлен здесь.
+    root.include_router(settings_router_module.build_router())
     root.include_router(sources_router_module.build_router())
     root.include_router(receivers_router_module.build_router())
     root.startup.register(receivers_router_module.on_startup)

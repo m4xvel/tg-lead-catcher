@@ -55,6 +55,31 @@ BTN_NO = "Нет"
 BTN_STATS_7D = "7 дней"
 BTN_STATS_30D = "30 дней"
 
+# --- тикет 09: настройки ------------------------------------------------------
+BTN_SETTINGS = "⚙️ Настройки"
+
+SETTINGS_BOOL_LABELS = {
+    "monitor_all_dm": "👥 Личные чаты",
+    "dedup_enabled": "🔁 Дедуп по автору и тексту",
+}
+
+# ключ -> (подпись, суффикс единицы измерения для отображения в кнопке)
+SETTINGS_NUMERIC_LABELS = {
+    "dedup_window_days": ("🔁 Окно дедупа", "дн."),
+    "scan_days": ("🔍 Глубина догона (дни)", "дн."),
+    "scan_msgs": ("🔍 Глубина догона (сообщения)", "сообщ."),
+    "rate_limit_per_min": ("📤 Лимит отправки", "/мин"),
+    "retention_days": ("🗑 Ретеншн", "дн."),
+}
+
+
+class SettingsToggleCB(CallbackData, prefix="stg"):
+    key: str
+
+
+class SettingsEditCB(CallbackData, prefix="sed"):
+    key: str
+
 
 class CheckStartCB(CallbackData, prefix="chk"):
     pass
@@ -134,6 +159,8 @@ def main_menu_kb(*, monitoring_paused: bool) -> ReplyKeyboardMarkup:
             [KeyboardButton(text=BTN_KEYWORDS), KeyboardButton(text=BTN_STOPWORDS)],
             [KeyboardButton(text=BTN_STATUS), KeyboardButton(text=BTN_STATS)],
             [KeyboardButton(text=BTN_TOP), KeyboardButton(text=BTN_HISTORY)],
+            # Тикет 09: раздел настроек — новая строка, существующие не тронуты.
+            [KeyboardButton(text=BTN_SETTINGS)],
         ],
         resize_keyboard=True,
     )
@@ -292,4 +319,51 @@ def stats_period_kb(days: int) -> InlineKeyboardMarkup:
     b.button(text=BTN_STATS_7D, callback_data=StatsPeriodCB(days=7))
     b.button(text=BTN_STATS_30D, callback_data=StatsPeriodCB(days=30))
     b.adjust(2)
+    return b.as_markup()
+
+
+def settings_menu_kb(values: dict[str, str]) -> InlineKeyboardMarkup:
+    """Список из шести настроек (R26/R31/R33/R37/R62/R68): тумблеры переключаются
+    сразу этой же кнопкой, числовые/текстовые поля открывают ввод нового значения.
+    Каждая кнопка показывает текущее значение (критерий приёмки тикета 09).
+    """
+    b = InlineKeyboardBuilder()
+
+    on = values.get("monitor_all_dm", "0") == "1"
+    b.row(
+        InlineKeyboardButton(
+            text=f"{SETTINGS_BOOL_LABELS['monitor_all_dm']}: {'вкл' if on else 'выкл'}",
+            callback_data=SettingsToggleCB(key="monitor_all_dm").pack(),
+        )
+    )
+    b.row(
+        InlineKeyboardButton(
+            text="✍️ Шаблон подписи", callback_data=SettingsEditCB(key="card_template").pack()
+        )
+    )
+
+    label, unit = SETTINGS_NUMERIC_LABELS["dedup_window_days"]
+    b.row(
+        InlineKeyboardButton(
+            text=f"{label}: {values.get('dedup_window_days', '')} {unit}",
+            callback_data=SettingsEditCB(key="dedup_window_days").pack(),
+        )
+    )
+    dedup_on = values.get("dedup_enabled", "1") == "1"
+    b.row(
+        InlineKeyboardButton(
+            text=f"{SETTINGS_BOOL_LABELS['dedup_enabled']}: {'вкл' if dedup_on else 'выкл'}",
+            callback_data=SettingsToggleCB(key="dedup_enabled").pack(),
+        )
+    )
+
+    for key in ("scan_days", "scan_msgs", "rate_limit_per_min", "retention_days"):
+        label, unit = SETTINGS_NUMERIC_LABELS[key]
+        b.row(
+            InlineKeyboardButton(
+                text=f"{label}: {values.get(key, '')} {unit}",
+                callback_data=SettingsEditCB(key=key).pack(),
+            )
+        )
+
     return b.as_markup()
