@@ -78,6 +78,8 @@ DEFAULT_SETTINGS: dict[str, str] = {
     "retention_days": "90",
     "card_template": "🔑 {keywords}\n👤 {author}\n💬 {chat}\n🕐 {time}",
     "monitoring_paused": "0",
+    "monitoring_paused_reason": "",
+    "monitoring_paused_at": "",
     "monitor_all_dm": "0",
 }
 

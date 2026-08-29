@@ -122,6 +122,19 @@ async def test_inaccessible_source_is_paused_and_notified_once(repos, ruleset):
     assert len(client.sent_messages) == 1
 
 
+async def test_unrelated_value_error_is_not_treated_as_inaccessible_source(repos, ruleset):
+    """Голый ValueError — это баг где-то ещё, а не "источник недоступен":
+    источник не паузится, ошибка всплывает наружу (иначе реальная причина теряется)."""
+    source = await repos["sources"].add(chat_id=100, title="Чат", kind="group")
+    client = FailingHistoryClient(ValueError("что-то сломалось не из-за недоступности чата"))
+
+    with pytest.raises(ValueError):
+        await run_startup_catchup(client, pause_seconds=0, **deps(repos, ruleset))
+
+    updated_source = await repos["sources"].get(id=source.id)
+    assert updated_source.paused is False
+
+
 async def test_unpausing_source_resumes_from_saved_place(repos, ruleset):
     source = await repos["sources"].add(
         chat_id=100, title="Чат", kind="group", paused=True

@@ -33,6 +33,17 @@ def test_invalid_regex_rejected_with_message():
         matcher.compile([("regex", "(")], [])
 
 
+def test_invalid_regex_error_message_is_russian():
+    with pytest.raises(matcher.InvalidKeywordError) as exc_info:
+        matcher.compile([("regex", "(")], [])
+
+    message = str(exc_info.value)
+    assert "Некорректное регулярное выражение" in message
+    # исходный английский текст re.error ("missing ), unterminated...")
+    # не должен просачиваться в пользовательский текст
+    assert "unterminated" not in message
+
+
 def test_case_and_yo_e_are_equivalent():
     ruleset_upper = matcher.compile([("word", "ремонт")], [])
     assert ruleset_upper.match("Нужен РЕМОНТ квартиры").matched is True

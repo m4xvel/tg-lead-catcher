@@ -29,7 +29,8 @@ INACCESSIBLE_SOURCE_ERRORS = (
     tg_errors.ChatInvalidError,
     tg_errors.UserDeactivatedError,
     tg_errors.UserDeactivatedBanError,
-    ValueError,
+    tg_errors.UserNotParticipantError,
+    tg_errors.ChatWriteForbiddenError,
 )
 
 

@@ -44,8 +44,9 @@ def _compile_one(kind: str, pattern: str) -> _CompiledKeyword:
         try:
             regex = re.compile(pattern, re.IGNORECASE)
         except re.error as exc:
+            position = f" (позиция {exc.pos})" if exc.pos is not None else ""
             raise InvalidKeywordError(
-                f"Некорректное регулярное выражение «{pattern}»: {exc}"
+                f"Некорректное регулярное выражение «{pattern}»{position}"
             ) from exc
     else:
         raise InvalidKeywordError(f"Неизвестный тип ключа: «{kind}»")
