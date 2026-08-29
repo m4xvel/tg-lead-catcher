@@ -1,4 +1,4 @@
-"""Тесты для setup.py: парсинг/запись .env и логин userbot с фейковым Telethon-клиентом.
+"""Тесты для configure.py: парсинг/запись .env и логин userbot с фейковым Telethon-клиентом.
 
 Интерактивный I/O (реальный input() в терминале) не тестируется — только чистая
 логика и функции с инъекцией ask/say, как велит executor.md для этого тикета.
@@ -12,7 +12,7 @@ from telethon.errors import (
     SessionPasswordNeededError,
 )
 
-import setup as setup_mod
+import configure as configure_mod
 
 
 # --------------------------------------------------------------------------
@@ -21,7 +21,7 @@ import setup as setup_mod
 
 
 def test_render_env_text_orders_required_keys_first():
-    text = setup_mod.render_env_text(
+    text = configure_mod.render_env_text(
         {
             "API_HASH": "abc",
             "API_ID": "123",
@@ -41,7 +41,7 @@ def test_render_env_text_orders_required_keys_first():
 
 def test_render_env_text_keeps_intentionally_blank_value():
     # TZ пропущен пользователем (Enter) — ключ должен остаться в файле, но пустым.
-    text = setup_mod.render_env_text(
+    text = configure_mod.render_env_text(
         {"API_ID": "123", "API_HASH": "abc", "BOT_TOKEN": "t", "OWNER_ID": "1", "TZ": ""}
     )
     assert "TZ=" in text.splitlines()
@@ -51,24 +51,24 @@ def test_write_env_roundtrips_through_parse_env_text(tmp_path):
     path = tmp_path / ".env"
     values = {"API_ID": "42", "API_HASH": "h", "BOT_TOKEN": "tok", "OWNER_ID": "7", "TZ": ""}
 
-    setup_mod.write_env(path, values)
-    parsed = setup_mod.parse_env_text(path.read_text(encoding="utf-8"))
+    configure_mod.write_env(path, values)
+    parsed = configure_mod.parse_env_text(path.read_text(encoding="utf-8"))
 
     assert parsed == values
 
 
 def test_parse_env_text_ignores_comments_and_blank_lines():
     text = "# комментарий\n\nAPI_ID=1\nOWNER_ID=2\n"
-    assert setup_mod.parse_env_text(text) == {"API_ID": "1", "OWNER_ID": "2"}
+    assert configure_mod.parse_env_text(text) == {"API_ID": "1", "OWNER_ID": "2"}
 
 
 def test_validate_positive_int_rejects_non_numeric():
     with pytest.raises(ValueError):
-        setup_mod.validate_positive_int("не число", "API_ID")
+        configure_mod.validate_positive_int("не число", "API_ID")
 
 
 def test_validate_positive_int_accepts_digits():
-    assert setup_mod.validate_positive_int(" 123 ", "API_ID") == 123
+    assert configure_mod.validate_positive_int(" 123 ", "API_ID") == 123
 
 
 # --------------------------------------------------------------------------
@@ -88,10 +88,10 @@ def test_ask_api_credentials_explains_before_asking():
         calls.append(("ask", prompt))
         return next(answers)
 
-    api_id, api_hash = setup_mod.ask_api_credentials(ask=ask, say=say)
+    api_id, api_hash = configure_mod.ask_api_credentials(ask=ask, say=say)
 
     assert (api_id, api_hash) == (12345, "abcHASH")
-    assert calls[0] == ("say", setup_mod.EXPLAIN_API_CREDS)
+    assert calls[0] == ("say", configure_mod.EXPLAIN_API_CREDS)
     assert "my.telegram.org" in calls[0][1]
     assert calls[1][0] == "ask"
 
@@ -102,7 +102,7 @@ def test_ask_api_credentials_reasks_on_invalid_api_id():
     answers = iter(["не число", "999", "hash-value"])
     ask = lambda prompt: next(answers)
 
-    api_id, api_hash = setup_mod.ask_api_credentials(ask=ask, say=say)
+    api_id, api_hash = configure_mod.ask_api_credentials(ask=ask, say=say)
 
     assert api_id == 999
     assert any("Ошибка" in msg for msg in calls)
@@ -113,10 +113,10 @@ def test_ask_bot_token_explains_botfather_before_asking():
     say = lambda msg: calls.append(("say", msg))
     ask = lambda prompt: calls.append(("ask", prompt)) or "123:TOKEN"
 
-    token = setup_mod.ask_bot_token(ask=ask, say=say)
+    token = configure_mod.ask_bot_token(ask=ask, say=say)
 
     assert token == "123:TOKEN"
-    assert calls[0] == ("say", setup_mod.EXPLAIN_BOT_TOKEN)
+    assert calls[0] == ("say", configure_mod.EXPLAIN_BOT_TOKEN)
     assert "BotFather" in calls[0][1]
 
 
@@ -124,7 +124,7 @@ def test_ask_tz_allows_intentional_skip():
     say = lambda msg: None
     ask = lambda prompt: ""
 
-    assert setup_mod.ask_tz(ask=ask, say=say) == ""
+    assert configure_mod.ask_tz(ask=ask, say=say) == ""
 
 
 # --------------------------------------------------------------------------
@@ -182,7 +182,7 @@ async def test_login_userbot_succeeds_on_first_correct_code():
     client = FakeClient(code_outcomes=["ok"])
     messages = []
 
-    result = await setup_mod.login_userbot(
+    result = await configure_mod.login_userbot(
         client, "+79990000000", ask_code=lambda: "11111", ask_password=lambda: "", say=messages.append
     )
 
@@ -197,7 +197,7 @@ async def test_login_userbot_reasks_after_invalid_code_then_succeeds():
     messages = []
     codes = iter(["00000", "11111"])
 
-    result = await setup_mod.login_userbot(
+    result = await configure_mod.login_userbot(
         client, "+79990000000", ask_code=lambda: next(codes), ask_password=lambda: "", say=messages.append
     )
 
@@ -212,8 +212,8 @@ async def test_login_userbot_raises_login_aborted_after_max_attempts():
     client = FakeClient(code_outcomes=[err, err, err])
     messages = []
 
-    with pytest.raises(setup_mod.LoginAborted):
-        await setup_mod.login_userbot(
+    with pytest.raises(configure_mod.LoginAborted):
+        await configure_mod.login_userbot(
             client,
             "+79990000000",
             ask_code=lambda: "00000",
@@ -234,7 +234,7 @@ async def test_login_userbot_asks_for_2fa_password_when_required():
     )
     messages = []
 
-    result = await setup_mod.login_userbot(
+    result = await configure_mod.login_userbot(
         client,
         "+79990000000",
         ask_code=lambda: "11111",
@@ -255,7 +255,7 @@ async def test_login_userbot_reasks_after_invalid_2fa_password():
     messages = []
     passwords = iter(["wrong", "right"])
 
-    result = await setup_mod.login_userbot(
+    result = await configure_mod.login_userbot(
         client,
         "+79990000000",
         ask_code=lambda: "11111",
@@ -276,8 +276,8 @@ async def test_login_userbot_raises_login_aborted_after_max_invalid_passwords():
     )
     messages = []
 
-    with pytest.raises(setup_mod.LoginAborted):
-        await setup_mod.login_userbot(
+    with pytest.raises(configure_mod.LoginAborted):
+        await configure_mod.login_userbot(
             client,
             "+79990000000",
             ask_code=lambda: "11111",
@@ -296,7 +296,7 @@ async def test_login_both_sessions_logs_in_userbot_then_panel_with_same_phone():
     messages = []
     codes = iter(["11111", "22222"])
 
-    userbot_me, panel_me = await setup_mod.login_both_sessions(
+    userbot_me, panel_me = await configure_mod.login_both_sessions(
         userbot_client,
         panel_client,
         "+79990000000",
@@ -324,7 +324,7 @@ async def test_login_both_sessions_skips_panel_login_when_already_authorized():
     panel_client = FakeClient(code_outcomes=[])
     panel_client.authorized = True
 
-    await setup_mod.login_both_sessions(
+    await configure_mod.login_both_sessions(
         userbot_client,
         panel_client,
         "+79990000000",
@@ -341,7 +341,7 @@ async def test_login_userbot_skips_login_when_already_authorized():
     client = FakeClient(code_outcomes=[])
     client.authorized = True
 
-    result = await setup_mod.login_userbot(
+    result = await configure_mod.login_userbot(
         client,
         "+79990000000",
         ask_code=lambda: (_ for _ in ()).throw(AssertionError("код не должен запрашиваться")),
@@ -379,7 +379,7 @@ async def test_verify_liveness_reports_userbot_panel_bot_and_owner():
     panel_client = FakeLivenessClient(FakeMe(first_name="Иван", user_id=111))
     bot_client = FakeLivenessClient(FakeMe(username="my_lead_bot"))
 
-    result = await setup_mod.verify_liveness(userbot_client, panel_client, bot_client, owner_id=555)
+    result = await configure_mod.verify_liveness(userbot_client, panel_client, bot_client, owner_id=555)
 
     assert result.userbot_name == "Иван"
     assert result.panel_name == "Иван"
@@ -388,11 +388,11 @@ async def test_verify_liveness_reports_userbot_panel_bot_and_owner():
 
 
 def test_format_liveness_contains_all_four_facts():
-    result = setup_mod.LivenessResult(
+    result = configure_mod.LivenessResult(
         userbot_name="Иван", panel_name="Иван", bot_username="my_lead_bot", owner_id=555
     )
 
-    text = setup_mod.format_liveness(result)
+    text = configure_mod.format_liveness(result)
 
     assert text.count("Иван") == 2
     assert "my_lead_bot" in text

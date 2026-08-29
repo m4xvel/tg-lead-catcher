@@ -234,7 +234,7 @@ async def on_toggle_monitoring(
     reason = await settings.get("monitoring_paused_reason", "")
     if was_paused and reason == "session_dead":
         await message.answer(
-            "⚠️ Сессия отвалилась — сначала запусти вход заново (`python setup.py`), "
+            "⚠️ Сессия отвалилась — сначала запусти вход заново (`python configure.py`), "
             "потом включай мониторинг.",
             reply_markup=kb.main_menu_kb(monitoring_paused=True),
         )

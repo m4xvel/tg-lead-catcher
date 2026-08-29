@@ -3,12 +3,19 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Слой зависимостей отдельно от остального кода — пересборка при правке кода не тянет pip заново.
+# Внешние зависимости отдельным слоем — пересборка при правке кода не тянет pip заново.
+# Версии — как в pyproject.toml [project.dependencies].
 COPY pyproject.toml ./
-COPY matcher ./matcher
-COPY store ./store
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir \
+    "telethon>=1.36" \
+    "aiogram>=3.13" \
+    "aiosqlite>=0.20" \
+    "aiohttp>=3.9" \
+    "tzdata>=2024.1"
 
+# Локальные пакеты (matcher, store, userbot, worker, panel) НЕ ставятся как
+# дистрибутив (pip install .) — рабочая директория /app уже на sys.path,
+# `python -m userbot.main`/`python -m panel.main` находит их через cwd без установки.
 COPY . .
 
 # Данные (SQLite, *.session) живут в volume ./data:/app/data — см. docker-compose.yml.

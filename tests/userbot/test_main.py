@@ -12,6 +12,7 @@ import logging
 
 import pytest
 
+import store
 import worker
 from userbot import main as userbot_main
 
@@ -179,3 +180,63 @@ async def test_failed_background_task_notifies_owner_via_bot_api_when_configured
     assert notify_calls[0][0] == "123:TEST-TOKEN"
     assert notify_calls[0][1] == 555
     assert "probe-notify" in notify_calls[0][2]
+
+
+# --------------------------------------------------------------------------
+# R14: TZ из окружения (пишет мастер настройки `configure.py` в .env) должен
+# дойти до settings.tz при старте — иначе карточка доставки всегда использует
+# сид-значение Europe/Moscow из схемы, а не то, что реально в .env.
+# --------------------------------------------------------------------------
+
+
+def _patch_background_loops(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_run_startup_catchup(client_arg, **kwargs):
+        return {}
+
+    def fake_worker_run(conn, client_arg, **kwargs):
+        async def _noop() -> None:
+            return None
+
+        return _noop()
+
+    def fake_run_daily(conn, **kwargs):
+        async def _noop() -> None:
+            return None
+
+        return _noop()
+
+    monkeypatch.setattr(userbot_main, "run_startup_catchup", fake_run_startup_catchup)
+    monkeypatch.setattr(worker, "run", fake_worker_run)
+    monkeypatch.setattr(worker.retention, "run_daily", fake_run_daily)
+
+
+async def test_run_syncs_settings_tz_from_env_when_different(tmp_path, monkeypatch):
+    monkeypatch.setenv("TZ", "Asia/Yekaterinburg")
+    _patch_background_loops(monkeypatch)
+    db_path = str(tmp_path / "bot.db")
+    client = FakeClient([])
+
+    await userbot_main.run(db_path=db_path, client=client)
+
+    conn = await store.connect(db_path)
+    try:
+        settings = store.SettingsRepo(conn)
+        assert await settings.get("tz") == "Asia/Yekaterinburg"
+    finally:
+        await conn.close()
+
+
+async def test_run_leaves_settings_tz_untouched_when_env_not_set(tmp_path, monkeypatch):
+    monkeypatch.delenv("TZ", raising=False)
+    _patch_background_loops(monkeypatch)
+    db_path = str(tmp_path / "bot.db")
+    client = FakeClient([])
+
+    await userbot_main.run(db_path=db_path, client=client)
+
+    conn = await store.connect(db_path)
+    try:
+        settings = store.SettingsRepo(conn)
+        assert await settings.get("tz") == "Europe/Moscow"
+    finally:
+        await conn.close()

@@ -1,4 +1,4 @@
-# Переезд на VPS — одной командой: `docker compose up -d` после `python setup.py` (пишет .env).
+# Переезд на VPS — одной командой: `docker compose up -d` после `python configure.py` (пишет .env).
 # Оба сервиса перезапускаются сами (restart: unless-stopped, R65) и делят ./data/ —
 # там SQLite (bot.db) и *.session userbot'а.
 services:

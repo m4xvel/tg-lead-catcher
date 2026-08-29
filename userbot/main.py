@@ -148,6 +148,18 @@ async def run(*, db_path: str | None = None, client=None) -> None:
     delivery_queue = store.DeliveryQueueRepo(conn)
     settings = store.SettingsRepo(conn)
 
+    # TZ из .env (мастер настройки, R14) не доходил до settings.tz — карточка доставки
+    # всегда использовала сид-значение Europe/Moscow из схемы. Синхронизируем один раз
+    # при старте, если TZ задан в окружении и отличается от текущего settings.tz.
+    tz_env = os.environ.get("TZ")
+    if tz_env:
+        current_tz = await settings.get("tz", "Europe/Moscow")
+        if tz_env != current_tz:
+            await settings.update("tz", tz_env)
+            logger.info(
+                "userbot: settings.tz обновлён из TZ окружения (%s -> %s)", current_tz, tz_env
+            )
+
     if client is None:
         client = build_client()
     await client.start()
