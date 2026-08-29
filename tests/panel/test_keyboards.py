@@ -37,7 +37,7 @@ def test_list_page_kb_source_row_has_pause_toggle_and_delete():
     markup = kb.list_page_kb(kb.TARGET_SOURCE, items, offset=0, with_pause=True)
     row = markup.inline_keyboard[0]
     assert row[0].text.startswith("⏸")
-    assert row[1].text == "❌"
+    assert row[1].text == "❌ удалить"
     cb = kb.PauseToggleCB.unpack(row[0].callback_data)
     assert cb.id == 1
     del_cb = kb.DeleteCB.unpack(row[1].callback_data)

@@ -28,6 +28,7 @@ import matcher
 import store
 import userbot
 from userbot import catchup as userbot_catchup
+from worker.runner import SESSION_DEAD_TEXT
 
 from . import keyboards as kb
 
@@ -220,8 +221,7 @@ async def on_toggle_monitoring(message: Message, settings: store.SettingsRepo) -
     reason = await settings.get("monitoring_paused_reason", "")
     if was_paused and reason == "session_dead":
         await message.answer(
-            "⚠️ Сессия отвалилась — сначала запусти вход заново (`python configure.py`), "
-            "потом включай мониторинг.",
+            f"{SESSION_DEAD_TEXT} (`python configure.py`), потом включай мониторинг.",
             reply_markup=kb.main_menu_kb(monitoring_paused=True),
         )
         return

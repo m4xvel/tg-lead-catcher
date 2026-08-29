@@ -397,3 +397,9 @@ def test_format_liveness_contains_all_four_facts():
     assert text.count("Иван") == 2
     assert "my_lead_bot" in text
     assert "555" in text
+    # брифу §5 буквально: «userbot подключен как Иван, бот @xxx жив, доступ у ID 123»
+    assert text.startswith("userbot подключен как Иван")
+    assert "@my_lead_bot жив" in text
+    assert text.index("подключен как Иван") < text.index("@my_lead_bot жив") < text.index(
+        "доступ у ID 555"
+    )

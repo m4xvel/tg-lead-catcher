@@ -240,7 +240,7 @@ def list_page_kb(
         b.row(
             InlineKeyboardButton(text=label, callback_data=toggle_cb),
             InlineKeyboardButton(
-                text="❌", callback_data=DeleteCB(target=target, id=item.id).pack()
+                text="❌ удалить", callback_data=DeleteCB(target=target, id=item.id).pack()
             ),
         )
         if with_pause:
@@ -279,7 +279,7 @@ def keyword_list_kb(target: str, items, offset: int = 0, *, page_size: int = PAG
         b.row(
             InlineKeyboardButton(text=truncate(item.pattern, 32), callback_data=NOOP),
             InlineKeyboardButton(
-                text="❌", callback_data=DeleteCB(target=target, id=item.id).pack()
+                text="❌ удалить", callback_data=DeleteCB(target=target, id=item.id).pack()
             ),
         )
     nav = []

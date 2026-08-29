@@ -24,6 +24,7 @@ from aiogram.types import CallbackQuery, Message
 
 import store
 from userbot import catchup as userbot_catchup
+from worker.runner import SESSION_DEAD_TEXT
 
 from . import keyboards as kb
 from .keywords import build_ruleset
@@ -234,8 +235,7 @@ async def on_toggle_monitoring(
     reason = await settings.get("monitoring_paused_reason", "")
     if was_paused and reason == "session_dead":
         await message.answer(
-            "⚠️ Сессия отвалилась — сначала запусти вход заново (`python configure.py`), "
-            "потом включай мониторинг.",
+            f"{SESSION_DEAD_TEXT} (`python configure.py`), потом включай мониторинг.",
             reply_markup=kb.main_menu_kb(monitoring_paused=True),
         )
         return

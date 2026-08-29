@@ -329,9 +329,9 @@ async def verify_liveness(userbot_client, panel_client, bot_client, owner_id: in
 
 def format_liveness(result: LivenessResult) -> str:
     return (
-        f"userbot подключён как {result.userbot_name}, "
-        f"panel-сессия подключена как {result.panel_name}, "
-        f"бот жив как @{result.bot_username}, "
+        f"userbot подключен как {result.userbot_name} "
+        f"(panel-сессия — как {result.panel_name}), "
+        f"бот @{result.bot_username} жив, "
         f"доступ у ID {result.owner_id}"
     )
 

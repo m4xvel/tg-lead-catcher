@@ -123,7 +123,8 @@ async def render_keyword_list(
     is_stop = _TARGETS[target]
     items = await keywords.list(is_stop=is_stop)
     label = "Минус-слова" if is_stop else "Ключевые слова"
-    text = f"🔑 {label}:" if items else f"{label}: список пуст."
+    emoji = "🚫" if is_stop else "🔑"
+    text = f"{emoji} {label}:" if items else f"{label}: список пуст."
     markup = kb.keyword_list_kb(target, items, offset)
     if isinstance(event, CallbackQuery):
         await event.message.edit_text(text, reply_markup=markup)

@@ -13,7 +13,7 @@ from aiogram.types import TelegramObject
 
 logger = logging.getLogger("panel.auth")
 
-DENIED_TEXT = "🚫 Доступ запрещён."
+DENIED_TEXT = "Доступ запрещён"
 
 
 class OwnerAccessMiddleware(BaseMiddleware):
