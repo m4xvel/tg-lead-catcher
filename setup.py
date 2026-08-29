@@ -32,6 +32,11 @@ from telethon.errors import (
 REPO_ROOT = Path(__file__).parent
 ENV_PATH = REPO_ROOT / ".env"
 SESSION_PATH = REPO_ROOT / "data" / "userbot"
+# panel — отдельный процесс (docker-compose.yml), не должен делить сессию с
+# userbot (гонка/повреждение SQLite при одновременном доступе двух процессов —
+# см. panel/main.py). Тот же аккаунт, тот же номер телефона, отдельный файл —
+# Telegram поддерживает несколько параллельных сессий на одном аккаунте.
+PANEL_SESSION_PATH = REPO_ROOT / "data" / "panel"
 
 # Порядок, в котором ключи попадают в .env — остальные (если появятся) идут следом по алфавиту.
 REQUIRED_KEYS = ["API_ID", "API_HASH", "BOT_TOKEN", "OWNER_ID", "TZ"]
@@ -261,6 +266,38 @@ async def login_userbot(
     return await client.get_me()
 
 
+async def login_both_sessions(
+    userbot_client,
+    panel_client,
+    phone: str,
+    ask_code: Callable[[], str],
+    ask_password: Callable[[], str],
+    say: Callable[[str], None],
+    max_attempts: int = MAX_LOGIN_ATTEMPTS,
+):
+    """Логинит ОБЕ сессии — userbot и panel — тем же номером телефона, одним аккаунтом.
+
+    Panel — отдельный процесс (см. `panel/main.py`), которому нельзя делить файл
+    сессии с userbot (гонка/повреждение SQLite при одновременном доступе двух
+    процессов). Решение — не общий файл, а вторая независимая авторизация того
+    же аккаунта: Telegram нормально держит несколько параллельных сессий (как
+    Desktop и Web одновременно). Переиспользует `login_userbot` дважды — код
+    подтверждения (и 2FA, если включена) для каждой сессии по-прежнему
+    спрашивается только в терминале мастера (R58), через переданные `ask_code`/
+    `ask_password`.
+
+    Возвращает `(userbot_me, panel_me)`.
+    """
+    userbot_me = await login_userbot(userbot_client, phone, ask_code, ask_password, say, max_attempts)
+    say(
+        "Основная сессия userbot авторизована. Теперь — вторая, независимая сессия "
+        "для панели (тот же номер телефона, отдельный файл). Придёт ещё один код "
+        "подтверждения."
+    )
+    panel_me = await login_userbot(panel_client, phone, ask_code, ask_password, say, max_attempts)
+    return userbot_me, panel_me
+
+
 # --------------------------------------------------------------------------
 # Финальная проверка живости
 # --------------------------------------------------------------------------
@@ -269,21 +306,31 @@ async def login_userbot(
 @dataclass
 class LivenessResult:
     userbot_name: str
+    panel_name: str
     bot_username: str
     owner_id: int
 
 
-async def verify_liveness(userbot_client, bot_client, owner_id: int) -> LivenessResult:
-    """userbot жив (get_me), бот отвечает (get_me), доступ владельца — введённый ID."""
+async def verify_liveness(userbot_client, panel_client, bot_client, owner_id: int) -> LivenessResult:
+    """userbot жив (get_me), panel-сессия жива (get_me), бот отвечает (get_me),
+    доступ владельца — введённый ID."""
     me = await userbot_client.get_me()
+    panel_me = await panel_client.get_me()
     bot_me = await bot_client.get_me()
     userbot_name = getattr(me, "first_name", None) or str(me.id)
-    return LivenessResult(userbot_name=userbot_name, bot_username=bot_me.username, owner_id=owner_id)
+    panel_name = getattr(panel_me, "first_name", None) or str(panel_me.id)
+    return LivenessResult(
+        userbot_name=userbot_name,
+        panel_name=panel_name,
+        bot_username=bot_me.username,
+        owner_id=owner_id,
+    )
 
 
 def format_liveness(result: LivenessResult) -> str:
     return (
         f"userbot подключён как {result.userbot_name}, "
+        f"panel-сессия подключена как {result.panel_name}, "
         f"бот жив как @{result.bot_username}, "
         f"доступ у ID {result.owner_id}"
     )
@@ -307,13 +354,17 @@ async def _run_interactive() -> None:
     print(f"Записано в {ENV_PATH}")
 
     userbot_client = TelegramClient(str(SESSION_PATH), int(values["API_ID"]), values["API_HASH"])
+    panel_client = TelegramClient(str(PANEL_SESSION_PATH), int(values["API_ID"]), values["API_HASH"])
     try:
         print(
             "Сейчас придёт код подтверждения в Telegram/SMS. Введите его здесь — "
-            "никогда не отправляйте его в переписке с ботом."
+            "никогда не отправляйте его в переписке с ботом. Это повторится дважды: "
+            "сначала для основной сессии userbot, затем для отдельной сессии панели "
+            "(тот же аккаунт, две независимые сессии — как Desktop и Web)."
         )
-        await login_userbot(
+        await login_both_sessions(
             userbot_client,
+            panel_client,
             phone,
             ask_code=lambda: input("Код подтверждения: "),
             ask_password=lambda: input("Пароль 2FA: "),
@@ -325,7 +376,9 @@ async def _run_interactive() -> None:
         )
         await bot_client.start(bot_token=values["BOT_TOKEN"])
         try:
-            result = await verify_liveness(userbot_client, bot_client, int(values["OWNER_ID"]))
+            result = await verify_liveness(
+                userbot_client, panel_client, bot_client, int(values["OWNER_ID"])
+            )
             print(format_liveness(result))
         finally:
             await bot_client.disconnect()
@@ -334,6 +387,7 @@ async def _run_interactive() -> None:
         raise SystemExit(1)
     finally:
         await userbot_client.disconnect()
+        await panel_client.disconnect()
 
 
 def main() -> None:

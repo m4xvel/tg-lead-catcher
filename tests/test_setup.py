@@ -288,6 +288,55 @@ async def test_login_userbot_raises_login_aborted_after_max_invalid_passwords():
 
 
 @pytest.mark.asyncio
+async def test_login_both_sessions_logs_in_userbot_then_panel_with_same_phone():
+    """R06/R07/R11: вторая, независимая сессия панели логинится тем же номером
+    телефона, отдельным клиентом — переиспользуя `login_userbot` второй раз."""
+    userbot_client = FakeClient(code_outcomes=["ok"])
+    panel_client = FakeClient(code_outcomes=["ok"])
+    messages = []
+    codes = iter(["11111", "22222"])
+
+    userbot_me, panel_me = await setup_mod.login_both_sessions(
+        userbot_client,
+        panel_client,
+        "+79990000000",
+        ask_code=lambda: next(codes),
+        ask_password=lambda: "",
+        say=messages.append,
+    )
+
+    assert userbot_client.authorized is True
+    assert panel_client.authorized is True
+    assert userbot_client.sign_in_calls == [
+        {"phone": "+79990000000", "code": "11111", "password": None}
+    ]
+    assert panel_client.sign_in_calls == [
+        {"phone": "+79990000000", "code": "22222", "password": None}
+    ]
+    assert userbot_me.first_name == "Иван"
+    assert panel_me.first_name == "Иван"
+    assert any("панели" in m for m in messages)
+
+
+@pytest.mark.asyncio
+async def test_login_both_sessions_skips_panel_login_when_already_authorized():
+    userbot_client = FakeClient(code_outcomes=["ok"])
+    panel_client = FakeClient(code_outcomes=[])
+    panel_client.authorized = True
+
+    await setup_mod.login_both_sessions(
+        userbot_client,
+        panel_client,
+        "+79990000000",
+        ask_code=lambda: "11111",
+        ask_password=lambda: "",
+        say=lambda m: None,
+    )
+
+    assert panel_client.sign_in_calls == []
+
+
+@pytest.mark.asyncio
 async def test_login_userbot_skips_login_when_already_authorized():
     client = FakeClient(code_outcomes=[])
     client.authorized = True
@@ -325,22 +374,26 @@ class FakeLivenessClient:
 
 
 @pytest.mark.asyncio
-async def test_verify_liveness_reports_userbot_bot_and_owner():
+async def test_verify_liveness_reports_userbot_panel_bot_and_owner():
     userbot_client = FakeLivenessClient(FakeMe(first_name="Иван", user_id=111))
+    panel_client = FakeLivenessClient(FakeMe(first_name="Иван", user_id=111))
     bot_client = FakeLivenessClient(FakeMe(username="my_lead_bot"))
 
-    result = await setup_mod.verify_liveness(userbot_client, bot_client, owner_id=555)
+    result = await setup_mod.verify_liveness(userbot_client, panel_client, bot_client, owner_id=555)
 
     assert result.userbot_name == "Иван"
+    assert result.panel_name == "Иван"
     assert result.bot_username == "my_lead_bot"
     assert result.owner_id == 555
 
 
-def test_format_liveness_contains_all_three_facts():
-    result = setup_mod.LivenessResult(userbot_name="Иван", bot_username="my_lead_bot", owner_id=555)
+def test_format_liveness_contains_all_four_facts():
+    result = setup_mod.LivenessResult(
+        userbot_name="Иван", panel_name="Иван", bot_username="my_lead_bot", owner_id=555
+    )
 
     text = setup_mod.format_liveness(result)
 
-    assert "Иван" in text
+    assert text.count("Иван") == 2
     assert "my_lead_bot" in text
     assert "555" in text
