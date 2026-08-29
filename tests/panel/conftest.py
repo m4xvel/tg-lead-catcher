@@ -21,6 +21,7 @@ from aiogram.methods import (
 from aiogram.types import Chat, Message, Update
 
 import store
+from tests.conftest import FakeEntity
 
 OWNER_ID = 555111
 
@@ -107,14 +108,23 @@ FakeChannel = channel_entity
 
 class FakeTelethonClient:
     """Дублирует интерфейс Telethon, которым пользуется `userbot.list_dialogs`
-    (`iter_dialogs`), `userbot.catchup.catch_up`/`scan_source` (`iter_messages`)
-    и `panel.receivers.ensure_default_receiver` (`get_me`).
+    (`iter_dialogs`), `userbot.catchup.catch_up`/`scan_source` (`iter_messages`),
+    `panel.receivers.ensure_default_receiver` (`get_me`) и
+    `userbot.deliver.build_original_link`, которой пользуется «История»
+    (`panel.stats.format_history`, R30/R52) (`get_entity`).
     """
 
-    def __init__(self, dialogs: list[FakeDialog] | None = None, me_id: int = 999):
+    def __init__(
+        self,
+        dialogs: list[FakeDialog] | None = None,
+        me_id: int = 999,
+        entities: dict[int, FakeEntity] | None = None,
+    ):
         self._dialogs = dialogs or []
         self._me_id = me_id
         self.get_me_calls = 0
+        self.entities = entities or {}
+        self.get_entity_calls: list[int] = []
 
     async def iter_dialogs(self):
         for d in self._dialogs:
@@ -131,6 +141,10 @@ class FakeTelethonClient:
             id = self._me_id
 
         return _Me()
+
+    async def get_entity(self, chat_id):
+        self.get_entity_calls.append(chat_id)
+        return self.entities.get(chat_id, FakeEntity(None))
 
 
 _update_ids = itertools.count(1)

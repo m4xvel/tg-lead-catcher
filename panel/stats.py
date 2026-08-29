@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import logging
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -24,10 +25,13 @@ from aiogram.types import CallbackQuery, Message
 
 import store
 from userbot import catchup as userbot_catchup
+from userbot import deliver as userbot_deliver
 from worker.runner import SESSION_DEAD_TEXT
 
 from . import keyboards as kb
 from .keywords import build_ruleset
+
+logger = logging.getLogger("panel.stats")
 
 _DT_FORMAT = "%Y-%m-%d %H:%M:%S"
 HISTORY_LIMIT = 50
@@ -73,22 +77,6 @@ async def _pause_duration_seconds(settings: store.SettingsRepo) -> int | None:
     return int((_now() - _parse_dt(paused_at_raw)).total_seconds())
 
 
-def to_internal_id(chat_id: int) -> int:
-    """Та же схема, что и `userbot.deliver._to_internal_id` (R30) — переиспользована
-    здесь как самостоятельная чистая функция: панели не нужен Telethon-клиент,
-    чтобы построить ссылку на уже сохранённый `hits.source_chat_id`."""
-    text = str(chat_id)
-    if text.startswith("-100"):
-        return int(text[4:])
-    return abs(chat_id)
-
-
-def build_message_link(source_chat_id: int, message_id: int) -> str:
-    """Ссылка на оригинал (R30/R52) — приватная форма `t.me/c/...`, рабочая для
-    владельца-участника чата независимо от того, публичный чат или нет."""
-    return f"https://t.me/c/{to_internal_id(source_chat_id)}/{message_id}"
-
-
 @dataclass
 class PeriodStats:
     total: int = 0
@@ -131,7 +119,10 @@ def format_status(
     return "\n".join(lines)
 
 
-def format_stats(stats: PeriodStats, days: int) -> str:
+async def format_stats(stats: PeriodStats, days: int, sources: store.SourcesRepo) -> str:
+    """По чатам — человекочитаемый `title` (как везде в панели, см. `list_page_kb`
+    и `userbot.deliver._format_chat`), не голый `chat_id`. Источник мог быть с тех
+    пор удалён — тогда фолбэком показываем сам chat_id, а не падаем."""
     lines = [f"📊 Статистика за {days} дн.: сработок — {stats.total}"]
     if stats.by_keyword:
         lines.append("По ключам:")
@@ -140,7 +131,9 @@ def format_stats(stats: PeriodStats, days: int) -> str:
     if stats.by_chat:
         lines.append("По чатам:")
         for chat_id, count in stats.by_chat.most_common():
-            lines.append(f"  {chat_id}: {count}")
+            source = await sources.get(chat_id=chat_id)
+            label = source.title if source is not None else str(chat_id)
+            lines.append(f"  {label}: {count}")
     return "\n".join(lines)
 
 
@@ -153,12 +146,52 @@ def format_top_keywords(pairs: list[tuple[str, int]]) -> str:
     return "\n".join(lines)
 
 
-def format_history(hits: list[store.Hit]) -> str:
+class _EntityCachingClient:
+    """Прокси вокруг `tg_client`, кеширующий `get_entity` по `chat_id` — живёт
+    только на время одного вызова `format_history` (обычный `dict`, не через
+    `store`, не персистентный). До 50 записей `hits` в истории часто относятся
+    к одному и тому же чату — без кеша `build_original_link` резолвил бы его
+    сетью заново на каждую запись."""
+
+    def __init__(self, client, cache: dict):
+        self._client = client
+        self._cache = cache
+
+    async def get_entity(self, chat_id):
+        if chat_id not in self._cache:
+            self._cache[chat_id] = await self._client.get_entity(chat_id)
+        return self._cache[chat_id]
+
+    def __getattr__(self, name):
+        return getattr(self._client, name)
+
+
+async def format_history(hits: list[store.Hit], tg_client) -> str:
+    """Ссылка на оригинал строится той же функцией, что и карточка доставки
+    (`userbot.deliver.build_original_link`, R30) — публичная форма для публичных
+    чатов, приватная для остальных; вторая независимая копия этой логики не
+    заводится. Сетевой `get_entity` внутри неё кешируется по `chat_id` на время
+    вызова этой функции (`_EntityCachingClient`) — записи истории часто
+    повторяют один и тот же chat_id, резолвить его сетью каждый раз незачем.
+
+    Правка тикета P3: `get_entity`/`build_original_link` может упасть для
+    ОДНОГО chat_id (чат стал недоступен, удалён и т.п.) — это не должно ронять
+    весь экран истории из-за одной проблемной записи; такая строка просто
+    показывается без ссылки, остальные рендерятся как обычно."""
     if not hits:
         return "🕐 История: пока пусто."
     lines = ["🕐 История (последние {}):".format(len(hits))]
+    entity_cache: dict[int, object] = {}
+    cached_client = _EntityCachingClient(tg_client, entity_cache)
     for hit in hits[:HISTORY_LIMIT]:
-        link = build_message_link(hit.source_chat_id, hit.message_id)
+        try:
+            link = await userbot_deliver.build_original_link(cached_client, hit.source_chat_id, hit.message_id)
+        except Exception:
+            logger.warning(
+                "Не удалось построить ссылку для chat_id=%s message_id=%s",
+                hit.source_chat_id, hit.message_id, exc_info=True,
+            )
+            link = "(ссылка недоступна)"
         keywords = ", ".join(hit.matched_keywords)
         lines.append(f"{hit.created_at} — {keywords} — {link}")
     return "\n".join(lines)
@@ -194,10 +227,12 @@ async def on_status(
     )
 
 
-async def _render_stats(event: Message | CallbackQuery, hits: store.HitsRepo, days: int) -> None:
+async def _render_stats(
+    event: Message | CallbackQuery, hits: store.HitsRepo, sources: store.SourcesRepo, days: int
+) -> None:
     all_hits = await hits.list()
     stats = compute_period_stats(all_hits, days)
-    text = format_stats(stats, days)
+    text = await format_stats(stats, days, sources)
     markup = kb.stats_period_kb(days)
     if isinstance(event, CallbackQuery):
         await event.message.edit_text(text, reply_markup=markup)
@@ -206,12 +241,14 @@ async def _render_stats(event: Message | CallbackQuery, hits: store.HitsRepo, da
         await event.answer(text, reply_markup=markup)
 
 
-async def on_stats_menu(message: Message, hits: store.HitsRepo) -> None:
-    await _render_stats(message, hits, days=7)
+async def on_stats_menu(message: Message, hits: store.HitsRepo, sources: store.SourcesRepo) -> None:
+    await _render_stats(message, hits, sources, days=7)
 
 
-async def on_stats_period(callback: CallbackQuery, callback_data: kb.StatsPeriodCB, hits: store.HitsRepo) -> None:
-    await _render_stats(callback, hits, days=callback_data.days)
+async def on_stats_period(
+    callback: CallbackQuery, callback_data: kb.StatsPeriodCB, hits: store.HitsRepo, sources: store.SourcesRepo
+) -> None:
+    await _render_stats(callback, hits, sources, days=callback_data.days)
 
 
 async def on_top_keywords(message: Message, hits: store.HitsRepo) -> None:
@@ -220,9 +257,9 @@ async def on_top_keywords(message: Message, hits: store.HitsRepo) -> None:
     await message.answer(format_top_keywords(top_keywords(stats)))
 
 
-async def on_history(message: Message, hits: store.HitsRepo) -> None:
+async def on_history(message: Message, hits: store.HitsRepo, tg_client) -> None:
     recent = await hits.list(limit=HISTORY_LIMIT)
-    await message.answer(format_history(recent))
+    await message.answer(await format_history(recent, tg_client))
 
 
 async def on_toggle_monitoring(

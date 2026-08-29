@@ -157,14 +157,19 @@ async def _add_chat(
     kind: str,
     sources: store.SourcesRepo,
     receivers: store.ReceiversRepo,
-) -> None:
+) -> bool:
+    """Возвращает False при дубликате (чат уже в списке, ничего не изменилось),
+    True — если реально добавлен. Вызывающий обязан честно ответить пользователю
+    в обоих случаях (как `panel.receivers.on_add_favorite` для «Избранного»),
+    а не говорить «Добавлено ✅», когда ничего не добавлено."""
     try:
         if target == kb.TARGET_SOURCE:
             await sources.add(chat_id, title, kind)
         else:
             await receivers.add(chat_id, title)
     except store.DuplicateChatError:
-        pass  # уже в списке — молча не дублируем
+        return False
+    return True
 
 
 async def _build_ruleset_provider(keywords: store.KeywordsRepo):
@@ -309,7 +314,7 @@ async def on_pause_toggle(
             await sources.update(source.id, paused=True)
             await callback.answer("⚠️ Источник недоступен, поставлен на паузу")
         else:
-            await callback.answer("Мониторинг возобновлён, догоняю пропущенное…")
+            await callback.answer("Источник снят с паузы, догоняю пропущенное…")
     else:
         await sources.update(source.id, paused=True)
         await callback.answer("Источник на паузе")
@@ -442,10 +447,10 @@ async def on_dialog_pick(
     if info is None:
         await callback.answer("Список устарел, откройте заново.", show_alert=True)
         return
-    await _add_chat(
+    added = await _add_chat(
         callback_data.target, callback_data.chat_id, info["title"], info["kind"], sources, receivers
     )
-    await callback.answer("Добавлено ✅")
+    await callback.answer("Добавлено ✅" if added else "Этот чат уже в списке")
     await render_list(callback, state, target=callback_data.target, sources=sources, receivers=receivers)
 
 
@@ -462,8 +467,8 @@ async def on_manual_text(
             reply_markup=kb.cancel_kb(target),
         )
         return
-    await _add_chat(target, resolved.chat_id, resolved.title, resolved.kind, sources, receivers)
-    await message.answer("Добавлено ✅")
+    added = await _add_chat(target, resolved.chat_id, resolved.title, resolved.kind, sources, receivers)
+    await message.answer("Добавлено ✅" if added else "Этот чат уже в списке")
     await render_list(message, state, target=target, sources=sources, receivers=receivers)
 
 
@@ -480,8 +485,8 @@ async def on_forward(
             reply_markup=kb.cancel_kb(target),
         )
         return
-    await _add_chat(target, resolved.chat_id, resolved.title, resolved.kind, sources, receivers)
-    await message.answer("Добавлено ✅")
+    added = await _add_chat(target, resolved.chat_id, resolved.title, resolved.kind, sources, receivers)
+    await message.answer("Добавлено ✅" if added else "Этот чат уже в списке")
     await render_list(message, state, target=target, sources=sources, receivers=receivers)
 
 

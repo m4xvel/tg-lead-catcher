@@ -17,9 +17,11 @@ from panel import keyboards as kb
 from panel import stats as statsmod
 from panel.auth import OwnerAccessMiddleware
 
+from tests.conftest import FakeEntity
 from tests.panel.conftest import (
     FakeDialog,
     FakeSupergroup,
+    FakeTelethonClient,
     OWNER_ID,
     build_callback_update,
     build_message_update,
@@ -157,12 +159,141 @@ def test_top_keywords_sorted_descending():
     assert counts == sorted(counts, reverse=True)
 
 
-# --- R52: история <= 50, рабочая ссылка -------------------------------------
+# --- R50: «По чатам» показывает title, а не голый chat_id -------------------
 
 
-def test_history_link_is_well_formed():
-    link = statsmod.build_message_link(-1001234567890, 555)
-    assert link == "https://t.me/c/1234567890/555"
+async def test_stats_by_chat_shows_title_not_raw_chat_id(repos):
+    await repos["sources"].add(-100111, "Ремонт СПб", "supergroup")
+    hits = [_FakeHit(matched_keywords=["ремонт"], source_chat_id=-100111, created_at=_dt(0))]
+    stats = statsmod.compute_period_stats(hits, 7)
+
+    text = await statsmod.format_stats(stats, 7, repos["sources"])
+
+    assert "Ремонт СПб: 1" in text
+    assert "-100111: 1" not in text
+
+
+async def test_stats_by_chat_falls_back_to_chat_id_when_source_deleted(repos):
+    """Источник мог быть удалён после того, как сработка уже записана — тогда
+    фолбэком печатаем сам chat_id, а не падаем."""
+    hits = [_FakeHit(matched_keywords=["ремонт"], source_chat_id=-100999, created_at=_dt(0))]
+    stats = statsmod.compute_period_stats(hits, 7)
+
+    text = await statsmod.format_stats(stats, 7, repos["sources"])
+
+    assert "-100999: 1" in text
+
+
+# --- R52: история <= 50, ссылка построена как в карточке доставки (R30) -----
+# (переиспользует userbot.deliver.build_original_link, не держит вторую копию)
+
+
+async def test_history_link_is_public_for_public_chat(repos):
+    await _add_hit(
+        repos["hits"], source_chat_id=-100222, message_id=555, matched_keywords=["ремонт"],
+        created_at=_dt(0),
+    )
+    recent = await repos["hits"].list()
+    tg_client = FakeTelethonClient(entities={-100222: FakeEntity("remont_spb")})
+
+    text = await statsmod.format_history(recent, tg_client)
+
+    assert "https://t.me/remont_spb/555" in text
+
+
+async def test_history_link_is_private_form_without_username(repos):
+    await _add_hit(
+        repos["hits"], source_chat_id=-100777888, message_id=555, matched_keywords=["ремонт"],
+        created_at=_dt(0),
+    )
+    recent = await repos["hits"].list()
+    tg_client = FakeTelethonClient()  # без entities — get_entity вернёт username=None
+
+    text = await statsmod.format_history(recent, tg_client)
+
+    assert "https://t.me/c/777888/555" in text
+
+
+async def test_history_reuses_cached_entity_for_same_chat_id(repos):
+    """Правка тикета P3: несколько сработок из одного chat_id не должны бить
+    в сеть на каждую запись — `get_entity` резолвится один раз на chat_id."""
+    for i in range(5):
+        await _add_hit(
+            repos["hits"], source_chat_id=-100222, message_id=100 + i, matched_keywords=["ремонт"],
+            created_at=_dt(0),
+        )
+    recent = await repos["hits"].list()
+    tg_client = FakeTelethonClient(entities={-100222: FakeEntity("remont_spb")})
+
+    text = await statsmod.format_history(recent, tg_client)
+
+    assert tg_client.get_entity_calls == [-100222]
+    assert text.count("https://t.me/remont_spb/") == 5
+
+
+async def test_history_caches_per_unique_chat_id(repos):
+    """Несколько разных chat_id — по одному вызову get_entity на каждый, но не
+    больше, независимо от того, сколько записей history из этого чата."""
+    for i in range(3):
+        await _add_hit(
+            repos["hits"], source_chat_id=-100222, message_id=100 + i, matched_keywords=["ремонт"],
+            created_at=_dt(0),
+        )
+    for i in range(2):
+        await _add_hit(
+            repos["hits"], source_chat_id=-100333, message_id=200 + i, matched_keywords=["ремонт"],
+            created_at=_dt(0),
+        )
+    recent = await repos["hits"].list()
+    tg_client = FakeTelethonClient(
+        entities={-100222: FakeEntity("remont_spb"), -100333: FakeEntity("stroyka_msk")}
+    )
+
+    await statsmod.format_history(recent, tg_client)
+
+    assert sorted(tg_client.get_entity_calls) == sorted({-100222, -100333})
+    assert len(tg_client.get_entity_calls) == 2
+
+
+class _FailingEntityClient:
+    """`get_entity` бросает исключение для одного заданного chat_id (чат стал
+    недоступен/удалён), для остальных — работает как обычно."""
+
+    def __init__(self, *, failing_chat_id: int, entities: dict[int, "FakeEntity"] | None = None):
+        self._failing_chat_id = failing_chat_id
+        self._entities = entities or {}
+
+    async def get_entity(self, chat_id):
+        if chat_id == self._failing_chat_id:
+            raise RuntimeError("chat is inaccessible")
+        return self._entities.get(chat_id, FakeEntity(None))
+
+
+async def test_history_one_broken_chat_id_does_not_crash_whole_screen(repos):
+    """Правка тикета P3: `get_entity`/`build_original_link` падает для ОДНОГО
+    chat_id (чат стал недоступен) — история всё равно рендерится целиком: эта
+    строка без ссылки, остальные 49 — как обычно, никакого падения."""
+    for i in range(49):
+        await _add_hit(
+            repos["hits"], source_chat_id=-100111, message_id=i, matched_keywords=["ремонт"],
+            created_at=_dt(0),
+        )
+    await _add_hit(
+        repos["hits"], source_chat_id=-100999, message_id=999, matched_keywords=["ремонт"],
+        created_at=_dt(0),
+    )
+    recent = await repos["hits"].list(limit=statsmod.HISTORY_LIMIT)
+    assert len(recent) == 50
+    tg_client = _FailingEntityClient(
+        failing_chat_id=-100999, entities={-100111: FakeEntity("remont_spb")}
+    )
+
+    text = await statsmod.format_history(recent, tg_client)
+
+    lines = text.splitlines()[1:]  # без заголовка "🕐 История (последние 50):"
+    assert len(lines) == 50
+    assert text.count("https://t.me/remont_spb/") == 49
+    assert text.count("(ссылка недоступна)") == 1
 
 
 async def test_history_screen_caps_at_50(repos):
@@ -173,7 +304,8 @@ async def test_history_screen_caps_at_50(repos):
         )
     recent = await repos["hits"].list(limit=statsmod.HISTORY_LIMIT)
     assert len(recent) == 50
-    text = statsmod.format_history(recent)
+    tg_client = FakeTelethonClient()
+    text = await statsmod.format_history(recent, tg_client)
     assert text.count("https://t.me/c/") == 50
 
 

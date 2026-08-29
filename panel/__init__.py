@@ -11,8 +11,11 @@ update, **kwargs)`): `sources: store.SourcesRepo`, `receivers:
 store.ReceiversRepo`, `keywords: store.KeywordsRepo`, `hits: store.HitsRepo`,
 `delivery_queue: store.DeliveryQueueRepo`, `settings: store.SettingsRepo`,
 `tg_client` (Telethon `TelegramClient` или дублирующий интерфейс фейк — тот
-же клиент, что строит `userbot.build_client()`, нужен панели только для
-`userbot.list_dialogs`/`userbot.catchup.scan_source`/`client.get_me()`).
+же клиент, что строит `userbot.build_client()`, нужен панели для
+`userbot.list_dialogs`/`userbot.catchup.scan_source`/`client.get_me()`, а также
+«Истории» (`panel.stats.on_history`) — для `userbot.deliver.build_original_link`,
+которой она переиспользует построение ссылки на оригинал, как и карточка
+доставки).
 
 Порядок `include_router` ниже критичен для R53: `panel.stats` и
 `panel.sources` оба регистрируют `on_toggle_monitoring` на одну и ту же кнопку

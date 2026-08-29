@@ -49,7 +49,7 @@ async def deliver(
         text = getattr(message, "text", None) or getattr(message, "message", None) or hit.text_preview
         await client.send_message(receiver.chat_id, text)
 
-    link = await _build_original_link(client, source, hit.message_id)
+    link = await build_original_link(client, source.chat_id, hit.message_id)
     card = build_card(card_template, hit=hit, source=source, link=link, tz=tz)
     await client.send_message(receiver.chat_id, card)
 
@@ -87,13 +87,15 @@ def _format_time(created_at: str, tz: str) -> str:
     return local.strftime("%d.%m.%Y %H:%M")
 
 
-async def _build_original_link(client, source: Source, message_id: int) -> str:
-    """`t.me/<chat>/<id>` для публичных чатов, `t.me/c/<internal_id>/<id>` для приватных."""
-    entity = await client.get_entity(source.chat_id)
+async def build_original_link(client, chat_id: int, message_id: int) -> str:
+    """`t.me/<chat>/<id>` для публичных чатов, `t.me/c/<internal_id>/<id>` для приватных
+    (R30) — единственное место, где строится эта ссылка; `panel.stats` (история,
+    R52) переиспользует её напрямую, а не держит вторую копию логики."""
+    entity = await client.get_entity(chat_id)
     username = getattr(entity, "username", None)
     if username:
         return f"https://t.me/{username}/{message_id}"
-    internal_id = _to_internal_id(source.chat_id)
+    internal_id = _to_internal_id(chat_id)
     return f"https://t.me/c/{internal_id}/{message_id}"
 
 

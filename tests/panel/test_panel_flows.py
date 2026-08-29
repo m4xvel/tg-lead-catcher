@@ -12,7 +12,7 @@ import pytest
 from aiogram import Bot, Dispatcher
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.methods import AnswerCallbackQuery, GetChat
+from aiogram.methods import AnswerCallbackQuery, GetChat, SendMessage
 from aiogram.types import (
     Chat,
     Message,
@@ -305,6 +305,76 @@ async def test_favorite_is_default_receiver_right_after_first_start(repos):
     assert added[0].chat_id == 13
 
 
+# --- R38/R39/R40: дубликат чата отвечает честно, не «Добавлено ✅» -------------
+# (ревью третьего круга доводки: DuplicateChatError раньше глотался молча, а
+# бот всё равно отвечал «Добавлено ✅», хотя ничего не добавилось — как уже
+# честно обрабатывает `panel.receivers.on_add_favorite` для «Избранного».)
+
+
+async def test_dialog_pick_duplicate_reports_already_in_list_without_duplicating(dp, bot, repos):
+    dp.include_router(panel.build_router(owner_id=OWNER_ID))
+    await repos["sources"].add(-1000, "Уже источник", "supergroup")
+    dialogs = [FakeDialog(chat_id=-1000, name="Уже источник", entity=FakeSupergroup())]
+    tg_client = FakeTelethonClient(dialogs=dialogs)
+
+    await _feed(dp, bot, build_callback_update(_callback(kb.AddStartCB(target=kb.TARGET_SOURCE).pack())), repos, tg_client)
+    await _feed(
+        dp, bot,
+        build_callback_update(_callback(kb.AddMethodCB(target=kb.TARGET_SOURCE, method="dialogs").pack())),
+        repos, tg_client,
+    )
+    await _feed(
+        dp, bot,
+        build_callback_update(_callback(kb.DialogPickCB(target=kb.TARGET_SOURCE, chat_id=-1000).pack())),
+        repos, tg_client,
+    )
+
+    assert len(await repos["sources"].list()) == 1  # не задублировалось
+    answers = [m for m in bot.session.calls if isinstance(m, AnswerCallbackQuery) and m.text]
+    assert answers[-1].text == "Этот чат уже в списке"
+
+
+async def test_manual_entry_duplicate_reports_already_in_list_without_duplicating(dp, repos):
+    chat = Chat(id=777, type="group", title="Моя группа лидов")
+    bot = make_bot(chats={"@leadgroup": chat})
+    dp.include_router(panel.build_router(owner_id=OWNER_ID))
+    tg_client = FakeTelethonClient()
+    await repos["receivers"].add(777, "Моя группа лидов")
+
+    await _feed(dp, bot, build_callback_update(_callback(kb.AddStartCB(target=kb.TARGET_RECEIVER).pack())), repos, tg_client)
+    await _feed(
+        dp, bot,
+        build_callback_update(_callback(kb.AddMethodCB(target=kb.TARGET_RECEIVER, method="manual").pack())),
+        repos, tg_client,
+    )
+    await _feed(dp, bot, build_message_update(_msg("@leadgroup")), repos, tg_client)
+
+    added = await repos["receivers"].list()
+    assert len(added) == 1  # не задублировалось
+    texts = [m.text for m in bot.session.calls if isinstance(m, SendMessage)]
+    assert texts[0] == "Этот чат уже в списке"  # второй SendMessage — это уже render_list
+
+
+async def test_forward_duplicate_reports_already_in_list_without_duplicating(dp, bot, repos):
+    dp.include_router(panel.build_router(owner_id=OWNER_ID))
+    tg_client = FakeTelethonClient()
+    await repos["sources"].add(-1005555, "Канал лидов", "channel")
+
+    await _feed(dp, bot, build_callback_update(_callback(kb.AddStartCB(target=kb.TARGET_SOURCE).pack())), repos, tg_client)
+    await _feed(
+        dp, bot,
+        build_callback_update(_callback(kb.AddMethodCB(target=kb.TARGET_SOURCE, method="forward").pack())),
+        repos, tg_client,
+    )
+    origin = MessageOriginChannel(date=0, chat=Chat(id=-1005555, type="channel", title="Канал лидов"), message_id=1)
+    await _feed(dp, bot, build_message_update(_msg(forward_origin=origin)), repos, tg_client)
+
+    added = await repos["sources"].list()
+    assert len(added) == 1  # не задублировалось
+    texts = [m.text for m in bot.session.calls if isinstance(m, SendMessage)]
+    assert texts[0] == "Этот чат уже в списке"  # второй SendMessage — это уже render_list
+
+
 # --- R79i: удаление без подтверждения ------------------------------------------
 
 
@@ -351,6 +421,13 @@ async def test_pausing_and_unpausing_source_triggers_catch_up(dp, bot, repos, mo
     resumed_source = await repos["sources"].get(id=source.id)
     assert resumed_source.paused is False
     assert calls == [source.id]
+
+    # реплика про конкретный источник (R41), а не про глобальный тумблер
+    # мониторинга (R48) — те же слова про «мониторинг» в разных местах путают
+    # два разных понятия (ревью третьего круга доводки)
+    answers = [m for m in bot.session.calls if isinstance(m, AnswerCallbackQuery) and m.text]
+    assert answers[-1].text == "Источник снят с паузы, догоняю пропущенное…"
+    assert "Мониторинг" not in answers[-1].text
 
 
 # --- R36: разовое сканирование истории за 7 дней по кнопке ---------------------
