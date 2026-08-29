@@ -33,7 +33,7 @@ BTN_FORWARD = "↩️ Переслать сообщение"
 BTN_MANUAL = "⌨️ Ввести вручную"
 BTN_CANCEL = "‹ Отмена"
 BTN_SEARCH = "🔍 Искать"
-BTN_SCAN = "🔍 Просканировать 7 дней"
+BTN_SCAN = "🔍 Просканировать последние 7 дней"
 BTN_PREV = "‹"
 BTN_NEXT = "›"
 NOOP = "noop"
@@ -145,6 +145,14 @@ class FavoriteAddCB(CallbackData, prefix="fav"):
 def truncate(text: str, limit: int = 40) -> str:
     text = text or ""
     return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def section_emoji(target: str) -> str:
+    """Эмодзи раздела — тот же, что и на кнопке главного меню (`BTN_SOURCES`/
+    `BTN_RECEIVERS`), а не свой собственный: заголовок списка (`panel.sources`)
+    берёт его отсюда, чтобы не разойтись с кнопкой раздела."""
+    label = BTN_SOURCES if target == TARGET_SOURCE else BTN_RECEIVERS
+    return label.split(" ", 1)[0]
 
 
 def main_menu_kb(*, monitoring_paused: bool) -> ReplyKeyboardMarkup:

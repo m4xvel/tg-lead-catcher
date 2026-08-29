@@ -196,6 +196,8 @@ async def test_status_screen_reports_all_fields(dp, bot, repos):
     assert "ожидают 1" in text
     assert hit.created_at in text
     assert "работает" in text
+    assert "▶️ Мониторинг работает" in text
+    assert "⏸ Мониторинг работает" not in text
 
     paused_text = statsmod.format_status(
         monitoring_paused=True, sources_count=0, keywords_count=0,
@@ -203,6 +205,8 @@ async def test_status_screen_reports_all_fields(dp, bot, repos):
     )
     assert "остановлен" in paused_text
     assert "ещё не было" in paused_text
+    assert "⏸ Мониторинг остановлен" in paused_text
+    assert "▶️ Мониторинг остановлен" not in paused_text
 
 
 # --- R53: диалог догона при снятии глобальной паузы --------------------------

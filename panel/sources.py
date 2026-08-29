@@ -137,7 +137,7 @@ async def render_list(
     repo = sources if target == kb.TARGET_SOURCE else receivers
     items = await repo.list()
     label = "Источники" if target == kb.TARGET_SOURCE else "Приёмники"
-    text = f"📂 {label}:" if items else f"{label}: список пуст."
+    text = f"{kb.section_emoji(target)} {label}:" if items else f"{label}: список пуст."
     markup = kb.list_page_kb(
         target,
         items,

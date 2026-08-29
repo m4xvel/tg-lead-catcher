@@ -122,7 +122,7 @@ def format_status(
 ) -> str:
     lines = [
         "📈 Статус",
-        "🟢 Мониторинг работает" if not monitoring_paused else "🔴 Мониторинг остановлен",
+        "▶️ Мониторинг работает" if not monitoring_paused else "⏸ Мониторинг остановлен",
         f"Источников: {sources_count}",
         f"Ключей: {keywords_count}",
         f"В очереди доставки: ожидают {pending_count}, не доставлено {failed_count}",
