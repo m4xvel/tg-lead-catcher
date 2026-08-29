@@ -1,0 +1,504 @@
+<title>tg-lead-catcher</title>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #faf9f6;
+    --surface: #ffffff;
+    --surface-2: #f2f0ea;
+    --border: #e3ded2;
+    --text: #22221f;
+    --text-2: #5c584e;
+    --text-3: #8a8576;
+    --accent: #2f6b5c;
+    --accent-soft: #e4efe9;
+    --accent-text: #1e4a3f;
+    --ok: #3f7f52;
+    --ok-soft: #e7f2e8;
+    --warn: #a5701f;
+    --warn-soft: #f7ecd9;
+    --skip: #7a7568;
+    --skip-soft: #eeece4;
+    --mono-bg: #1e1d19;
+    --mono-text: #eae6da;
+    --mono-accent: #8fd9be;
+    --shadow: 0 1px 2px rgba(30,28,22,0.06), 0 8px 24px -12px rgba(30,28,22,0.12);
+  }
+
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --bg: #171613;
+      --surface: #1e1c18;
+      --surface-2: #262420;
+      --border: #38352c;
+      --text: #ece8dc;
+      --text-2: #b8b3a2;
+      --text-3: #837e6d;
+      --accent: #6fbfa6;
+      --accent-soft: #223731;
+      --accent-text: #a4e4cd;
+      --ok: #74c48a;
+      --ok-soft: #1f3324;
+      --warn: #dcab5c;
+      --warn-soft: #3a2f1a;
+      --skip: #9b9689;
+      --skip-soft: #2a2823;
+      --mono-bg: #100f0d;
+      --mono-text: #e4dfd0;
+      --mono-accent: #8fd9be;
+      --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -12px rgba(0,0,0,0.5);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #171613;
+    --surface: #1e1c18;
+    --surface-2: #262420;
+    --border: #38352c;
+    --text: #ece8dc;
+    --text-2: #b8b3a2;
+    --text-3: #837e6d;
+    --accent: #6fbfa6;
+    --accent-soft: #223731;
+    --accent-text: #a4e4cd;
+    --ok: #74c48a;
+    --ok-soft: #1f3324;
+    --warn: #dcab5c;
+    --warn-soft: #3a2f1a;
+    --skip: #9b9689;
+    --skip-soft: #2a2823;
+    --mono-bg: #100f0d;
+    --mono-text: #e4dfd0;
+    --mono-accent: #8fd9be;
+    --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -12px rgba(0,0,0,0.5);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--accent-text); }
+  a:focus-visible, button:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .wrap {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+  }
+
+  header.top {
+    padding: 56px 0 32px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+  }
+
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-text);
+    background: var(--accent-soft);
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 3px;
+    margin-bottom: 18px;
+  }
+
+  h1 {
+    font-family: 'IBM Plex Serif', Georgia, serif;
+    font-weight: 600;
+    font-size: clamp(28px, 4.5vw, 38px);
+    line-height: 1.18;
+    margin: 0 0 12px;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+
+  .lede {
+    color: var(--text-2);
+    font-size: 17px;
+    max-width: 60ch;
+    margin: 0;
+  }
+
+  .statrow {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-top: 32px;
+  }
+  .stat {
+    background: var(--surface);
+    padding: 16px 18px;
+  }
+  .stat .n {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 26px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    display: block;
+  }
+  .stat .l {
+    font-size: 12.5px;
+    color: var(--text-3);
+    margin-top: 2px;
+  }
+
+  section { margin: 48px 0; }
+  section.tight { margin: 32px 0; }
+
+  h2 {
+    font-family: 'IBM Plex Serif', Georgia, serif;
+    font-weight: 600;
+    font-size: 22px;
+    margin: 0 0 6px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  h2 .num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    color: var(--text-3);
+    font-weight: 400;
+  }
+  h3 {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 15.5px;
+    font-weight: 600;
+    color: var(--text-2);
+    margin: 22px 0 8px;
+  }
+  .subhead {
+    color: var(--text-2);
+    font-size: 14.5px;
+    margin: 0 0 18px;
+    max-width: 62ch;
+  }
+
+  p { margin: 0 0 14px; }
+  ul, ol { margin: 0 0 14px; padding-left: 22px; }
+  li { margin-bottom: 6px; }
+
+  code {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.88em;
+    background: var(--surface-2);
+    padding: 0.1em 0.4em;
+    border-radius: 3px;
+    color: var(--accent-text);
+  }
+
+  pre.cmd {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13.5px;
+    background: var(--mono-bg);
+    color: var(--mono-text);
+    padding: 16px 18px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0 0 14px;
+    line-height: 1.55;
+  }
+  pre.cmd .p { color: var(--mono-accent); }
+  pre.cmd .c { color: #9a9686; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14.5px;
+  }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  thead th {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-3);
+    background: var(--surface-2);
+    font-weight: 500;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-2) 40%, transparent); }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .pill.skip { background: var(--skip-soft); color: var(--skip); }
+
+  .found-fix {
+    display: grid;
+    grid-template-columns: 20px 1fr;
+    gap: 10px;
+    margin: 10px 0;
+    padding: 12px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+  }
+  .found-fix .mark { color: var(--accent); font-weight: 600; }
+  .found-fix .body b { font-weight: 600; }
+  .found-fix .body .why { color: var(--text-2); font-size: 14px; }
+
+  .round-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--text-3);
+    background: var(--surface-2);
+    border-radius: 5px;
+    padding: 2px 8px;
+    margin-left: 8px;
+  }
+
+  .dropped {
+    font-size: 13.5px;
+    color: var(--text-3);
+    border-left: 3px solid var(--border);
+    padding: 8px 14px;
+    margin: 8px 0;
+  }
+
+  .linklist { list-style: none; padding: 0; margin: 0; }
+  .linklist li {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14.5px;
+  }
+  .linklist li:last-child { border-bottom: none; }
+  .linklist code { white-space: nowrap; }
+  .linklist .desc { color: var(--text-2); text-align: right; }
+
+  .adr-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 10px;
+  }
+  .adr {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    background: var(--surface);
+    font-size: 13.5px;
+  }
+  .adr .id { font-family: 'IBM Plex Mono', monospace; color: var(--text-3); font-size: 11.5px; }
+  .adr .t { font-weight: 500; margin-top: 3px; }
+
+  footer.close {
+    margin-top: 64px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--text-3);
+    font-size: 13px;
+  }
+
+  @media (max-width: 560px) {
+    .linklist li { flex-direction: column; }
+    .linklist .desc { text-align: left; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="top">
+    <span class="eyebrow">Autopilot · сдача</span>
+    <h1>tg-lead-catcher</h1>
+    <p class="lede">Telegram-лидогенератор: userbot ловит сообщения по ключевым словам в выбранных чатах и пересылает их в целевой чат с карточкой автора — всё управление через бота-панель, без правки кода.</p>
+
+    <div class="statrow">
+      <div class="stat"><span class="n">83</span><span class="l">требований в манифесте</span></div>
+      <div class="stat"><span class="n">75</span><span class="l">сделано</span></div>
+      <div class="stat"><span class="n">9</span><span class="l">тасков</span></div>
+      <div class="stat"><span class="n">3/3</span><span class="l">круга доводки</span></div>
+      <div class="stat"><span class="n">179</span><span class="l">теста, все зелёные</span></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>Готово</h2>
+    <p class="subhead">Проверено независимой слепой приёмкой — запуском проекта, а не пересказом кода.</p>
+    <p>Userbot слушает выбранные группы/супергруппы/каналы (личные чаты — по флагу), ловит слово/фразу/regex-ключи без учёта регистра и «ё/е», отсекает минус-словами. Найденное пересылается форвардом (с фолбэком на копию, если чат запрещает пересылку) во все приёмники, следом идёт карточка автора со ссылкой на профиль и на оригинал сообщения. Дедуп двойной — по id сообщения всегда, по автору+тексту за настраиваемое окно. Правки сообщений и альбомы обрабатываются целиком.</p>
+    <p>Вся настройка — источники, приёмники, ключевые слова, минус-слова, шесть параметров устойчивости (окно дедупа, глубина догона, лимит отправки, ретеншн, шаблон карточки, личные чаты) — через кнопки бота-панели, ни одной правки в коде не требуется. Кнопка «🧪 Проверить» показывает, сработает ли текст, до реального запуска. Статус, статистика за 7/30 дней, топ мусорных ключей, история из 50 срабатываний, экспорт настроек в JSON — всё на месте.</p>
+    <p>Устойчивость: очередь доставки в SQLite с тремя попытками и растущей задержкой, глобальный лимит отправки, корректная обработка <code>FloodWaitError</code>, а при смерти Telegram-сессии — немедленное уведомление владельцу через резервный канал (Bot API), не через саму умершую сессию.</p>
+
+    <h3>Запустить</h3>
+    <pre class="cmd"><span class="c"># установка</span>
+pip install -e ".[dev]"
+
+<span class="c"># первый раз — мастер настройки: создаёт .env, логинит обе Telethon-сессии</span>
+python configure.py
+
+<span class="c"># через Docker (рекомендуется для постоянной работы)</span>
+docker compose up -d
+
+<span class="c"># либо локально, двумя процессами</span>
+python -m userbot.main
+python -m panel.main</pre>
+    <p style="font-size:14px;color:var(--text-2)">Обе команды — <code>docker build</code> и <code>pip install -e</code> — реально проверены вживую двумя независимыми ревьюерами, не просто прочитаны в коде.</p>
+  </section>
+
+  <section>
+    <h2>Что нужно от тебя</h2>
+    <p class="subhead">Секретов в репозитории нет — ни одного значения, только имена переменных.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Переменная</th><th>Что это</th><th>Где взять</th></tr></thead>
+        <tbody>
+          <tr><td><code>API_ID</code>, <code>API_HASH</code></td><td>доступ к Telegram API для обеих сессий</td><td>my.telegram.org</td></tr>
+          <tr><td><code>BOT_TOKEN</code></td><td>токен бота-панели</td><td>@BotFather</td></tr>
+          <tr><td><code>OWNER_ID</code></td><td>твой Telegram ID — единственный, с кем говорит панель</td><td>мастер спросит и подскажет, как узнать</td></tr>
+          <tr><td><code>TZ</code></td><td>часовой пояс для карточек (необязательно)</td><td>по умолчанию Europe/Moscow</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:14px">Всё это заполняет мастер <code>python configure.py</code> — он же логинит обе Telethon-сессии (userbot и панель — это два независимых входа в один твой аккаунт, как Desktop и Web одновременно) и в конце показывает, что всё живо. Заглушек в коде нет — плейсхолдеров для правки нулевой список, всё нужное собирает мастер при первом запуске.</p>
+  </section>
+
+  <section>
+    <h2>Доводка</h2>
+    <p class="subhead">Сравнивал с эталоном — точными текстами кнопок, карточки и меню, которые ты сам продиктовал в брифе (эталона стороннего не было — ты подтвердил, что текста брифа хватит). Три круга, потолок по правилам доводки.</p>
+
+    <h3>Круг 1<span class="round-badge">5 найдено → 5 исправлено</span></h3>
+    <div class="found-fix"><span class="mark">✓</span><div class="body"><b>«Доступ запрещён»</b> — было с лишним эмодзи и точкой, теперь дословно по брифу</div></div>
+    <div class="found-fix"><span class="mark">✓</span><div class="body"><b>«Сессия отвалилась»</b> — два разных текста в разных местах свели к одному источнику правды</div></div>
+    <div class="found-fix"><span class="mark">✓</span><div class="body"><b>Итог мастера настройки</b> — формулировка ближе к брифу, при этом не потеряна информация про вторую сессию</div></div>
+    <div class="found-fix"><span class="mark">✓</span><div class="body"><b>Кнопка «❌ удалить»</b> — было просто «❌»</div></div>
+    <div class="found-fix"><span class="mark">✓</span><div class="body"><b>Эмодзи заголовка списка минус-слов</b> — было 🔑 (как у обычных ключей), стало 🚫</div></div>
+
+    <h3>Круг 2<span class="round-badge">4 найдено → 3 исправлено</span></h3>
+    <div class="found-fix"><span class="mark">✓</span><div class="body"><b>Эмодзи заголовка списка приёмников</b> — брал чужой эмодзи (📂 от источников), теперь свой (📥), взято из той же константы, что и кнопка раздела — разъехаться больше не может</div></div>
+    <div class="found-fix"><span class="mark">✓</span><div class="body"><b>Статус мониторинга на экране статуса</b> — было 🟢/🔴, стало ⏸/▶️ как везде в интерфейсе; ревью тут же поймало, что пару сперва перепутали местами — поправлено и закрыто тестом на саму связку эмодзи+слово</div></div>
+    <div class="found-fix"><span class="mark">✓</span><div class="body"><b>Кнопка скана истории</b> — «...последние 7 дней» по точной формулировке брифа</div></div>
+    <div class="dropped">Отброшено: разные глаголы «работает»/«запущен» для одного состояния — чистый вкус критика, эталон такого не требовал.</div>
+
+    <h3>Круг 3 <span style="font-weight:400;color:var(--text-3)">(последний по потолку)</span><span class="round-badge">8 найдено → 5 исправлено</span></h3>
+    <div class="found-fix"><span class="mark">✓</span><div class="body"><b>Добавление уже существующего чата</b> отвечало ложным «Добавлено ✅», хотя ничего не добавлялось — теперь честно «Этот чат уже в списке»</div></div>
+    <div class="found-fix"><span class="mark">✓</span><div class="body"><b>Статистика по чатам</b> показывала голый numeric chat_id — теперь название чата, как везде в интерфейсе</div></div>
+    <div class="found-fix"><span class="mark">✓</span><div class="body"><b>Ссылка на оригинал в «Истории»</b> строилась второй, независимой копией логики и всегда в приватной форме — теперь одна логика на карточку и историю, плюс кеш и устойчивость к одному сбойному чату (найдено уже в ревью этого же тикета)</div></div>
+    <div class="found-fix"><span class="mark">✓</span><div class="body"><b>Реплика при снятии паузы источника</b> путала с глобальным тумблером мониторинга — теперь явно про «Источник», не про «Мониторинг»</div></div>
+    <div class="dropped">Отброшено: позиция «✅» (в начале/в конце фразы) и недостающая подсказка «Попробуйте ещё раз» в одном из путей ввода — стилевые предпочтения критика, не расхождение с эталоном.</div>
+  </section>
+
+  <section>
+    <h2>Что не вошло</h2>
+    <p class="subhead">Всё — по прямым словам заказчика, ничего не забыто тихо.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Что</th><th>Почему</th></tr></thead>
+        <tbody>
+          <tr><td>Мультиарендность</td><td>явно исключено в разделе «Границы» брифа</td></tr>
+          <tr><td>Веб-панель / десктопное приложение</td><td>UI только внутри Telegram, сказано явно</td></tr>
+          <tr><td>Правила/профили</td><td>схема плоская по прямому требованию</td></tr>
+          <tr><td>Морфологический анализ</td><td>начало слова + минус-слова признаны достаточными</td></tr>
+          <tr><td>Полнотекстовый поиск по истории</td><td>«истории 50 записей достаточно»</td></tr>
+          <tr><td>Отдельный номер под userbot</td><td>работаем с основного аккаунта</td></tr>
+          <tr><td>Автоответы, рассылки, вступление в чаты</td><td>решение только читает и пересылает</td></tr>
+          <tr><td>Команда <code>/import</code>, парная к <code>/export</code></td><td>не запрошена брифом; strict запрещает добавлять сверху — перенос уже закрыт копированием папки <code>./data/</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Что пошло не по плану</h2>
+    <p class="subhead">Четыре места, где сборка доказала, что план был неточен — требование то же, изменился способ.</p>
+
+    <h3>Слово-ключ технически ловит и «ремонтник», и «автора»</h3>
+    <p>Твой собственный пример в брифе — «"авто" не ловит "автора"» — на практике не выполняется: правило «по началу слова», которое и даёт нужное «ремонт» → «ремонтник», без морфологического анализа (а его ты сам исключил) не может одновременно не ловить «авто» → «автора». Это один и тот же механизм для обоих случаев — развести их нечем. Минус-слова закрывают большинство ложных срабатываний на практике.</p>
+
+    <h3>Regex-ключи не получают ё/е-эквивалентность</h3>
+    <p>Первая версия применяла ё→е-замену и к regex-паттернам — ревью поймало баг: замена превращала <code>\D</code> в <code>\d</code>, ломая смысл выражения на противоположный. Regex-ключ теперь компилируется как есть, только с <code>re.IGNORECASE</code>; для ё/е в своём regex — пиши <code>[ёе]</code> сам.</p>
+
+    <h3>Точки входа не были в изначальном плане</h3>
+    <p>Тикеты собрали все модули (приём, доставка, панель), но ни один не собирал их в реально запускаемый процесс — обнаружилось на ревью последнего тикета. Закрыто отдельным тикетом.</p>
+
+    <h3>userbot и панель не могут делить один файл Telethon-сессии</h3>
+    <p>Слепая приёмка нашла: оба процесса читали/писали один файл сессии — известный риск повреждения при двух одновременных процессах. У панели теперь своя, отдельно логинящаяся сессия того же аккаунта.</p>
+  </section>
+
+  <section>
+    <h2>Открытые вопросы</h2>
+    <p class="subhead">Слепая приёмка сначала нашла настоящий дрейф — шесть требований (окно дедупа, глубина догона, лимит отправки, ретеншн, шаблон карточки, флаг личных чатов) реально работали только через прямую запись в базу, без элемента UI, хотя манифест считал их готовыми. Плюс не собирался Docker-образ и падал <code>pip install</code> (конфликт имени <code>setup.py</code> с инструментами упаковки Python). Все восемь — закрыты: тикет панели настроек добавил недостающий UI, инфраструктурный тикет починил сборку и перенос <code>TZ</code> из <code>.env</code> в реальную настройку.</p>
+    <p>Осталось непроверенным вживую (нет реального Telegram-аккаунта для проверки): сам вход через <code>python configure.py</code>, реальная пересылка сообщений, реальный <code>FloodWaitError</code>, задача Планировщика Windows. Логика каждого проверена тестами с фейковым Telegram-клиентом — что происходит на реальном аккаунте, увидишь при первом запуске мастера.</p>
+  </section>
+
+  <section>
+    <h2>Архитектурные решения</h2>
+    <p class="subhead">9 записей — почему сделано так, а не иначе, включая все четыре находки выше. Переживут этот прогон дольше, чем спецификация.</p>
+    <div class="adr-grid">
+      <div class="adr"><div class="id">ADR-0001</div><div class="t">Гибрид userbot + панель вместо одного бота</div></div>
+      <div class="adr"><div class="id">ADR-0002</div><div class="t">Плоская схема без профилей</div></div>
+      <div class="adr"><div class="id">ADR-0003</div><div class="t">Матчинг без морфологии</div></div>
+      <div class="adr"><div class="id">ADR-0004</div><div class="t">Два независимых вида дедупа</div></div>
+      <div class="adr"><div class="id">ADR-0005</div><div class="t">Очередь доставки в SQLite</div></div>
+      <div class="adr"><div class="id">ADR-0006</div><div class="t">D01 — «ремонтник» vs «автора»</div></div>
+      <div class="adr"><div class="id">ADR-0007</div><div class="t">D02 — границы фразы-ключа</div></div>
+      <div class="adr"><div class="id">ADR-0008</div><div class="t">D03 — недостающие точки входа</div></div>
+      <div class="adr"><div class="id">ADR-0009</div><div class="t">D04 — regex без ё/е-нормализации</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Где что лежит</h2>
+    <ul class="linklist">
+      <li><code>CLAUDE.md</code><span class="desc">описание проекта для следующей сессии</span></li>
+      <li><code>docs/adr/</code><span class="desc">почему сделано именно так — 9 записей</span></li>
+      <li><code>.autopilot/dashboard.html</code><span class="desc">прогресс и цифры сборки</span></li>
+      <li><code>.autopilot/2026-08-28-tg-lead-catcher/2026-08-28-brief.md</code><span class="desc">твоя изначальная задача, дословно</span></li>
+      <li><code>.autopilot/2026-08-28-tg-lead-catcher/manifest.md</code><span class="desc">все 83 требования и их судьба</span></li>
+      <li><code>.autopilot/2026-08-28-tg-lead-catcher/spec.md</code><span class="desc">спецификация</span></li>
+      <li><code>.autopilot/README.md</code><span class="desc">список всех сборок этого проекта</span></li>
+    </ul>
+  </section>
+
+  <footer class="close">
+    Собрано навыком <code>/autopilot</code> · режим полуавтомат, глубина строгая, доводка до трёх кругов · сдано 29.08.2026
+  </footer>
+
+</div>
