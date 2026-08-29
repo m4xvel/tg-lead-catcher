@@ -9,3 +9,6 @@ __pycache__/
 # tg-lead-catcher: данные и сессия userbot (R66)
 ./data/
 *.session
+
+*.egg-info/
+.pytest_cache/
