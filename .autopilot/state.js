@@ -1,7 +1,7 @@
 window.STATE =
 {
   "slug": "tg-lead-catcher",
-  "dir": "2026-08-28-tg-lead-catcher--wip",
+  "dir": "2026-08-28-tg-lead-catcher",
   "title": "Telegram-лидогенератор по ключевым словам",
   "mode": "semi",
   "depth": "strict",
@@ -24,8 +24,8 @@ window.STATE =
   "memoryFile": "CLAUDE.md",
   "skillDir": "/c/Users/X79/leed/.agents/skills/autopilot",
   "startedAt": "2026-08-28T18:51:58+03:00",
-  "updatedAt": "2026-09-02T18:14:20+03:00",
-  "finishedAt": null,
+  "updatedAt": "2026-09-02T19:40:00+03:00",
+  "finishedAt": "2026-09-02T19:40:00+03:00",
   "reopenedAt": "2026-09-02T17:40:00+03:00",
   "stages": [
     { "id": "preflight", "status": "done", "startedAt": "2026-09-02T17:40:00+03:00", "finishedAt": "2026-09-02T17:42:00+03:00", "note": "прогон переоткрыт (--wip вернулся) — найден баг после сдачи" },
@@ -33,12 +33,12 @@ window.STATE =
     { "id": "briefing",  "status": "done", "startedAt": "2026-09-02T17:48:00+03:00", "finishedAt": "2026-09-02T17:52:00+03:00", "note": "3 уточняющих вопроса — объём фикса" },
     { "id": "spec",      "status": "done", "startedAt": "2026-09-02T17:52:00+03:00", "finishedAt": "2026-09-02T18:05:00+03:00", "note": "§11 добавлен" },
     { "id": "plan",      "status": "done", "startedAt": "2026-09-02T18:05:00+03:00", "finishedAt": "2026-09-02T18:10:00+03:00", "note": "1 таск (11), волна 7" },
-    { "id": "build",     "status": "active", "startedAt": "2026-09-02T18:14:20+03:00" },
-    { "id": "review",    "status": "pending" },
-    { "id": "final",     "status": "pending" }
+    { "id": "build",     "status": "done", "startedAt": "2026-09-02T18:14:20+03:00", "finishedAt": "2026-09-02T19:05:00+03:00", "note": "1 из 1 тасков готово" },
+    { "id": "review",    "status": "done", "startedAt": "2026-09-02T18:20:00+03:00", "finishedAt": "2026-09-02T19:00:00+03:00", "note": "manifest+spec чисто, craft — 1 небл. находка" },
+    { "id": "final",     "status": "done", "startedAt": "2026-09-02T19:05:00+03:00", "finishedAt": "2026-09-02T19:40:00+03:00", "note": "G4 нашла и закрыла разрыв в G01 (/export)" }
   ],
   "requirements": {
-    "total": 85, "done": 75, "inTicket": 2, "inSpec": 0,
+    "total": 85, "done": 77, "inTicket": 0, "inSpec": 0,
     "placeholder": 0, "deferred": 8, "dropped": 0, "ticketCount": 10
   },
   "tickets": [
@@ -98,11 +98,14 @@ window.STATE =
       "retries": 0, "repairs": 1, "handoffs": 0 },
     { "id": "11", "title": "Панель: отмена и команды в FSM-вводе",
       "requirements": ["G01","G02"],
-      "blockedBy": ["04","05","09"], "wave": 7, "zone": ["panel/settings.py","panel/keywords.py","panel/sources.py","panel/keyboards.py"], "status": "review",
-      "startedAt": "2026-09-02T18:14:20+03:00" }
+      "blockedBy": ["04","05","09"], "wave": 7, "zone": ["panel/settings.py","panel/keywords.py","panel/sources.py","panel/keyboards.py","panel/export.py"], "status": "done",
+      "startedAt": "2026-09-02T18:14:20+03:00", "finishedAt": "2026-09-02T19:35:00+03:00",
+      "tests": "python -m pytest -> 194 passed, было 179", "commit": "78e5909",
+      "retries": 0, "repairs": 1, "handoffs": 0,
+      "repairFindings": ["G4 слепая приёмка: /export не чистил FSM state в settings/sources (panel/export.py:cmd_export без фильтра состояния, роутер подключён раньше) — /export назван в цитате G01, не опционален — закрыто"] }
   ],
   "singlePass": null,
-  "tests": null,
+  "tests": { "passed": 194, "failed": 0 },
   "debt": { "placeholders": [], "assumptions": [], "emptyEnv": [] },
   "additions": [],
   "coverage": {
@@ -170,9 +173,18 @@ window.STATE =
     { "ticket": "P1", "axis": "craft", "file": "panel/keywords.py + panel/keyboards.py (emoji-привязка, «❌ удалить»)",
       "note": "не покрыто тестом — test_keyboards.py не тестирует keyword_list_kb" },
     { "ticket": "P3", "axis": "spec", "file": "panel/stats.py format_history",
-      "note": "get_entity для одного нечитаемого/удалённого чата упадёт на весь список истории из 50 записей, а не деградирует для одной строки — история раньше не имела сетевой зависимости вовсе, теперь имеет" }
+      "note": "get_entity для одного нечитаемого/удалённого чата упадёт на весь список истории из 50 записей, а не деградирует для одной строки — история раньше не имела сетевой зависимости вовсе, теперь имеет" },
+    { "ticket": "11", "axis": "craft", "file": "panel/keywords.py:210-214, panel/settings.py:149-158",
+      "note": "await state.clear() продублирован в обеих ветках хендлера (командная и обычная) вместо одного вызова до if — не блокирует, чисто стилевая находка" }
   ],
   "reviewers": { "manifestSpec": "a6bd3fc4850da03ff", "craft": "a8bcf1b52452e96ee" },
+  "blind2": {
+    "date": "2026-09-02", "scope": "инкрементальная проверка G01/G02 (тикет 11), не полный повтор проверки всех 85 строк",
+    "drift": [
+      { "req": "G01", "manifest": "done", "blind": "частично", "note": "тихая отмена команды работает для /start и незанятых команд, но НЕ для /export в состояниях settings/sources — panel/export.py:cmd_export (Command(\"export\"), без фильтра состояния) перехватывает раньше, реально шлёт экспорт и не чистит FSM state; /export прямо назван в цитате G01 из уточняющего вопроса брифа" }
+    ],
+    "fixedBy": "репар 1, тикет 11, commit 78e5909 — независимо перепроверено (manifest+spec и craft, оба чисто), 194 passed"
+  },
   "blind": {
     "resolved": "все 9 расхождений закрыты тикетами 09 (экран настроек) и 10 (Docker-сборка, конфликт setup.py, TZ); оба независимо перепроверены двумя ревьюерами (реальный docker build + pip install -e, не пересказ отчёта исполнителя)",
     "drift": [
