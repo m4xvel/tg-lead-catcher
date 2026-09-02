@@ -85,6 +85,18 @@ class CheckStartCB(CallbackData, prefix="chk"):
     pass
 
 
+class SettingsCancelCB(CallbackData, prefix="scl"):
+    pass
+
+
+class KeywordCancelCB(CallbackData, prefix="kcl"):
+    target: str
+
+
+class CheckCancelCB(CallbackData, prefix="ckc"):
+    pass
+
+
 class ResumeConfirmCB(CallbackData, prefix="rsc"):
     answer: str  # yes | no
 
@@ -188,6 +200,33 @@ def add_method_kb(target: str) -> InlineKeyboardMarkup:
 def cancel_kb(target: str) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     b.button(text=BTN_CANCEL, callback_data=CancelAddCB(target=target))
+    b.adjust(1)
+    return b.as_markup()
+
+
+def settings_cancel_kb() -> InlineKeyboardMarkup:
+    """Тикет 11 (G02): отмена ввода нового значения настройки — тихо возвращает
+    в меню настроек, тем же путём, что и `on_settings_cancel`."""
+    b = InlineKeyboardBuilder()
+    b.button(text=BTN_CANCEL, callback_data=SettingsCancelCB())
+    b.adjust(1)
+    return b.as_markup()
+
+
+def keyword_cancel_kb(target: str) -> InlineKeyboardMarkup:
+    """Тикет 11 (G02): отмена построчного ввода ключей/минус-слов — тихо
+    возвращает в список того же `target`."""
+    b = InlineKeyboardBuilder()
+    b.button(text=BTN_CANCEL, callback_data=KeywordCancelCB(target=target))
+    b.adjust(1)
+    return b.as_markup()
+
+
+def check_cancel_kb() -> InlineKeyboardMarkup:
+    """Тикет 11 (G02): отмена ввода текста для «🧪 Проверить» — просто прерывает
+    ожидание, списка для возврата здесь нет."""
+    b = InlineKeyboardBuilder()
+    b.button(text=BTN_CANCEL, callback_data=CheckCancelCB())
     b.adjust(1)
     return b.as_markup()
 

@@ -1,7 +1,7 @@
 window.STATE =
 {
   "slug": "tg-lead-catcher",
-  "dir": "2026-08-28-tg-lead-catcher",
+  "dir": "2026-08-28-tg-lead-catcher--wip",
   "title": "Telegram-лидогенератор по ключевым словам",
   "mode": "semi",
   "depth": "strict",
@@ -24,21 +24,22 @@ window.STATE =
   "memoryFile": "CLAUDE.md",
   "skillDir": "/c/Users/X79/leed/.agents/skills/autopilot",
   "startedAt": "2026-08-28T18:51:58+03:00",
-  "updatedAt": "2026-08-29T10:20:40+03:00",
-  "finishedAt": "2026-08-29T10:20:40+03:00",
+  "updatedAt": "2026-09-02T18:14:20+03:00",
+  "finishedAt": null,
+  "reopenedAt": "2026-09-02T17:40:00+03:00",
   "stages": [
-    { "id": "preflight", "status": "done", "startedAt": "2026-08-28T18:51:58+03:00", "finishedAt": "2026-08-28T18:55:00+03:00" },
-    { "id": "manifest",  "status": "done", "startedAt": "2026-08-28T18:55:00+03:00", "finishedAt": "2026-08-28T19:05:00+03:00" },
-    { "id": "briefing",  "status": "done", "startedAt": "2026-08-28T19:05:00+03:00", "finishedAt": "2026-08-28T19:12:00+03:00" },
-    { "id": "spec",      "status": "done", "startedAt": "2026-08-28T19:12:00+03:00", "finishedAt": "2026-08-28T19:35:00+03:00" },
-    { "id": "plan",      "status": "done", "startedAt": "2026-08-28T19:35:00+03:00", "finishedAt": "2026-08-28T19:55:00+03:00" },
-    { "id": "build",     "status": "done", "startedAt": "2026-08-28T19:55:00+03:00", "finishedAt": "2026-08-29T03:40:00+03:00" },
-    { "id": "review",    "status": "done", "startedAt": "2026-08-28T19:55:00+03:00", "finishedAt": "2026-08-29T03:40:00+03:00" },
-    { "id": "final",     "status": "done", "startedAt": "2026-08-29T03:40:00+03:00", "finishedAt": "2026-08-29T10:20:40+03:00" }
+    { "id": "preflight", "status": "done", "startedAt": "2026-09-02T17:40:00+03:00", "finishedAt": "2026-09-02T17:42:00+03:00", "note": "прогон переоткрыт (--wip вернулся) — найден баг после сдачи" },
+    { "id": "manifest",  "status": "done", "startedAt": "2026-09-02T17:42:00+03:00", "finishedAt": "2026-09-02T17:48:00+03:00", "note": "G01/G02 добавлены" },
+    { "id": "briefing",  "status": "done", "startedAt": "2026-09-02T17:48:00+03:00", "finishedAt": "2026-09-02T17:52:00+03:00", "note": "3 уточняющих вопроса — объём фикса" },
+    { "id": "spec",      "status": "done", "startedAt": "2026-09-02T17:52:00+03:00", "finishedAt": "2026-09-02T18:05:00+03:00", "note": "§11 добавлен" },
+    { "id": "plan",      "status": "done", "startedAt": "2026-09-02T18:05:00+03:00", "finishedAt": "2026-09-02T18:10:00+03:00", "note": "1 таск (11), волна 7" },
+    { "id": "build",     "status": "active", "startedAt": "2026-09-02T18:14:20+03:00" },
+    { "id": "review",    "status": "pending" },
+    { "id": "final",     "status": "pending" }
   ],
   "requirements": {
-    "total": 83, "done": 75, "inTicket": 0, "inSpec": 0,
-    "placeholder": 0, "deferred": 8, "dropped": 0, "ticketCount": 9
+    "total": 85, "done": 75, "inTicket": 2, "inSpec": 0,
+    "placeholder": 0, "deferred": 8, "dropped": 0, "ticketCount": 10
   },
   "tickets": [
     { "id": "01", "title": "Ядро: схема данных и матчинг ключевых слов",
@@ -94,7 +95,11 @@ window.STATE =
       "blockedBy": ["06","07"], "wave": 6, "zone": ["Dockerfile","docker-compose.yml","setup.py","pyproject.toml","userbot/main.py","tests/test_setup.py"], "status": "done",
       "startedAt": "2026-08-29T04:10:00+03:00", "finishedAt": "2026-08-29T05:20:00+03:00",
       "tests": "docker build -> success, pip install -e -> success, python -m pytest -> 170 passed", "commit": "528f3ce",
-      "retries": 0, "repairs": 1, "handoffs": 0 }
+      "retries": 0, "repairs": 1, "handoffs": 0 },
+    { "id": "11", "title": "Панель: отмена и команды в FSM-вводе",
+      "requirements": ["G01","G02"],
+      "blockedBy": ["04","05","09"], "wave": 7, "zone": ["panel/settings.py","panel/keywords.py","panel/sources.py","panel/keyboards.py"], "status": "review",
+      "startedAt": "2026-09-02T18:14:20+03:00" }
   ],
   "singlePass": null,
   "tests": null,
@@ -167,7 +172,7 @@ window.STATE =
     { "ticket": "P3", "axis": "spec", "file": "panel/stats.py format_history",
       "note": "get_entity для одного нечитаемого/удалённого чата упадёт на весь список истории из 50 записей, а не деградирует для одной строки — история раньше не имела сетевой зависимости вовсе, теперь имеет" }
   ],
-  "reviewers": { "manifestSpec": "acc27abb429ad3a61", "craft": "a6c4c41bd4b1665d3" },
+  "reviewers": { "manifestSpec": "a6bd3fc4850da03ff", "craft": "a8bcf1b52452e96ee" },
   "blind": {
     "resolved": "все 9 расхождений закрыты тикетами 09 (экран настроек) и 10 (Docker-сборка, конфликт setup.py, TZ); оба независимо перепроверены двумя ревьюерами (реальный docker build + pip install -e, не пересказ отчёта исполнителя)",
     "drift": [

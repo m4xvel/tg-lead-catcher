@@ -11,6 +11,8 @@ import itertools
 
 import pytest
 from aiogram import Dispatcher
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.storage.base import StorageKey
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import CallbackQuery, Chat, Message, User
 
@@ -63,6 +65,11 @@ def bot():
 
 async def _feed(dp, bot, update, repos):
     await dp.feed_update(bot, update, **dict(repos))
+
+
+async def _fsm_state(dp, bot):
+    key = StorageKey(bot_id=bot.id, chat_id=OWNER_ID, user_id=OWNER_ID)
+    return await FSMContext(storage=dp.storage, key=key).get_state()
 
 
 # --- validate_int (R33/R37/R62/R68): нечисловой/отрицательный/нулевой ввод --
@@ -285,3 +292,58 @@ async def test_new_card_template_affects_next_build_card(dp, bot, repos):
         saved_template, hit=hit, source=source, link="https://t.me/c/111/1"
     )
     assert card == "Только ключ: ремонт"
+
+
+# --- тикет 11 (G01): команда во время ожидания ввода = тихая отмена ---------
+
+
+async def test_command_during_card_template_edit_does_not_overwrite_value(dp, bot, repos):
+    """Воспроизводит найденный баг: `/start` во время редактирования
+    `card_template` не должен долетать как новое значение шаблона."""
+    original = await repos["settings"].get("card_template")
+
+    await _feed(
+        dp, bot, build_callback_update(_callback(kb.SettingsEditCB(key="card_template").pack())), repos
+    )
+    await _feed(dp, bot, build_message_update(_msg("/start")), repos)
+
+    assert (await repos["settings"].get("card_template")) == original
+    assert (await _fsm_state(dp, bot)) is None
+
+
+async def test_command_during_numeric_edit_does_not_save_value(dp, bot, repos):
+    await _feed(
+        dp, bot, build_callback_update(_callback(kb.SettingsEditCB(key="retention_days").pack())), repos
+    )
+    await _feed(dp, bot, build_message_update(_msg("/export")), repos)
+
+    assert (await repos["settings"].get("retention_days")) == "90"
+    assert (await _fsm_state(dp, bot)) is None
+
+
+# --- тикет 11 (G02): кнопка «‹ Отмена» в настройках --------------------------
+
+
+async def test_settings_edit_prompt_has_cancel_button(dp, bot, repos):
+    await _feed(
+        dp, bot, build_callback_update(_callback(kb.SettingsEditCB(key="card_template").pack())), repos
+    )
+    from aiogram.methods import EditMessageText
+
+    edits = [c for c in bot.session.calls if isinstance(c, EditMessageText)]
+    texts = [btn.text for row in edits[-1].reply_markup.inline_keyboard for btn in row]
+    assert kb.BTN_CANCEL in texts
+
+
+async def test_settings_cancel_button_returns_to_menu_without_saving(dp, bot, repos):
+    await _feed(
+        dp, bot, build_callback_update(_callback(kb.SettingsEditCB(key="retention_days").pack())), repos
+    )
+    await _feed(dp, bot, build_callback_update(_callback(kb.SettingsCancelCB().pack())), repos)
+
+    assert (await repos["settings"].get("retention_days")) == "90"
+    assert (await _fsm_state(dp, bot)) is None
+    from aiogram.methods import EditMessageText
+
+    edits = [c for c in bot.session.calls if isinstance(c, EditMessageText)]
+    assert "Настройки" in edits[-1].text

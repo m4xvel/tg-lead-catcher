@@ -124,17 +124,35 @@ async def on_settings_edit_start(
         current = await settings.get(key, "")
         await callback.message.edit_text(
             f"Текущий шаблон подписи:\n{current}\n\n"
-            f"Пришлите новый шаблон. {CARD_TEMPLATE_PLACEHOLDERS_HINT}"
+            f"Пришлите новый шаблон. {CARD_TEMPLATE_PLACEHOLDERS_HINT}",
+            reply_markup=kb.settings_cancel_kb(),
         )
     else:
         current = await settings.get(key, "")
         await callback.message.edit_text(
-            f"Текущее значение: {current}.\n{NUMERIC_PROMPTS[key]}"
+            f"Текущее значение: {current}.\n{NUMERIC_PROMPTS[key]}",
+            reply_markup=kb.settings_cancel_kb(),
         )
     await callback.answer()
 
 
+async def on_settings_cancel(
+    callback: CallbackQuery, state: FSMContext, settings: store.SettingsRepo
+) -> None:
+    """Тикет 11 (G02): тихая отмена ввода — тот же вид, что и `cmd_settings_menu`."""
+    await state.clear()
+    await _render_menu(callback, settings)
+    await callback.answer()
+
+
 async def on_settings_value(message: Message, state: FSMContext, settings: store.SettingsRepo) -> None:
+    if (message.text or "").startswith("/"):
+        # Тикет 11 (G01): команда во время ожидания ввода = тихая отмена, не
+        # сохраняем текст команды как значение настройки.
+        await state.clear()
+        await _render_menu(message, settings)
+        return
+
     data = await state.get_data()
     key = data.get("key")
     await state.clear()
@@ -165,6 +183,7 @@ def build_router() -> Router:
     router.message.register(cmd_settings_menu, F.text == kb.BTN_SETTINGS)
     router.callback_query.register(on_settings_toggle, kb.SettingsToggleCB.filter())
     router.callback_query.register(on_settings_edit_start, kb.SettingsEditCB.filter())
+    router.callback_query.register(on_settings_cancel, kb.SettingsCancelCB.filter())
     router.message.register(on_settings_value, SettingsStates.waiting_value)
 
     return router

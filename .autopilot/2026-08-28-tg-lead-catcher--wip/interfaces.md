@@ -203,6 +203,35 @@ delivery_queue(id, hit_id, receiver_chat_id, status[pending|sent|failed],
   морфологического анализа, который R72 явно исключает. Осознанное решение,
   не забытый баг — не переоткрывать в следующих тикетах.
 
+### Из тикета 11 — панель: отмена и команды в FSM-вводе (G01, G02)
+
+- `panel.keyboards.SettingsCancelCB` (без полей), `panel.keyboards.settings_cancel_kb()`
+  — инлайн-кнопка «‹ Отмена» для промптов `panel.settings.on_settings_edit_start`
+  (и текстовый шаблон, и числовые поля); хендлер `panel.settings.on_settings_cancel`
+  зовёт тот же `_render_menu`, что и `cmd_settings_menu`.
+- `panel.keyboards.KeywordCancelCB(target: str)`, `panel.keyboards.keyword_cancel_kb(target)`
+  — то же для построчного ввода ключей/минус-слов (`panel.keywords.on_add_start`);
+  хендлер `panel.keywords.on_keyword_cancel` зовёт `render_keyword_list(...,
+  target=target)`.
+- `panel.keyboards.CheckCancelCB` (без полей), `panel.keyboards.check_cancel_kb()`
+  — то же для «🧪 Проверить» (`panel.keywords.on_check_start`); хендлер
+  `panel.keywords.on_check_cancel` просто очищает FSM state, списка для возврата
+  нет (как и у самого `on_check_text`).
+- Команда (текст, начинающийся с `/`) во время ожидания текстового ввода — тихая
+  отмена, реализована как шесть отдельных проверок в начале каждого хендлера
+  (`on_settings_value`, `on_bulk_text`, `on_check_text`, `on_manual_text`,
+  `on_forward`, `on_dialog_search_text`), не общий хелпер — модули `panel.settings`/
+  `panel.keywords`/`panel.sources` остаются независимыми.
+- **Побочная находка, поправлена в зоне тикета:** `panel.sources.cmd_start`
+  (`CommandStart()`, без фильтра состояния) перехватывал `/start` раньше
+  `waiting_manual`/`waiting_forward`/`waiting_search` в том же роутере (регистрируется
+  первым) — FSM state не очищался бы даже при силентной отмене. Добавлен
+  `state.clear()` в `cmd_start`. **Не тронуто (вне зоны тикета 11):** `panel/export.py`
+  — `/export` аналогично перехватывает команду раньше `sources`-хендлеров; при
+  желании почистить это в следующем тикете.
+- Тесты: `python -m pytest tests/panel/test_settings.py tests/panel/test_keywords.py
+  tests/panel/test_panel_flows.py -q`.
+
 ### Из тикета 05 — панель: ключи, статистика, экспорт
 
 - `panel.keywords.build_router()`, `panel.stats.build_router()`,

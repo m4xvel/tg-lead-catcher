@@ -11,6 +11,8 @@ import itertools
 import pytest
 from aiogram import Bot, Dispatcher
 from aiogram.exceptions import TelegramBadRequest
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.storage.base import StorageKey
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.methods import AnswerCallbackQuery, GetChat, SendMessage
 from aiogram.types import (
@@ -79,6 +81,11 @@ async def _feed(dp, bot, update, repos, tg_client, extra=None):
     if extra:
         kwargs.update(extra)
     await dp.feed_update(bot, update, **kwargs)
+
+
+async def _fsm_state(dp, bot, chat_id=OWNER_ID):
+    key = StorageKey(bot_id=bot.id, chat_id=chat_id, user_id=chat_id)
+    return await FSMContext(storage=dp.storage, key=key).get_state()
 
 
 # --- R59: доступ -------------------------------------------------------------
@@ -552,3 +559,108 @@ async def test_scan_now_inaccessible_source_pauses_and_does_not_crash(dp, bot, r
 
     refreshed = await repos["sources"].get(id=source.id)
     assert refreshed.paused is True
+
+
+# --- тикет 11 (G01): команда во время ожидания ввода добавления чата = --------
+# тихая отмена, ничего не добавляется (тот же вид, что и кнопка «‹ Отмена»)
+
+
+async def test_command_during_manual_entry_is_silently_cancelled(dp, bot, repos):
+    dp.include_router(panel.build_router(owner_id=OWNER_ID))
+    tg_client = FakeTelethonClient()
+
+    await _feed(dp, bot, build_callback_update(_callback(kb.AddStartCB(target=kb.TARGET_RECEIVER).pack())), repos, tg_client)
+    await _feed(
+        dp,
+        bot,
+        build_callback_update(
+            _callback(kb.AddMethodCB(target=kb.TARGET_RECEIVER, method="manual").pack())
+        ),
+        repos,
+        tg_client,
+    )
+    await _feed(dp, bot, build_message_update(_msg("/start")), repos, tg_client)
+
+    assert await repos["receivers"].list() == []
+    assert (await _fsm_state(dp, bot)) is None
+
+
+async def test_command_during_forward_wait_is_silently_cancelled(dp, bot, repos):
+    dp.include_router(panel.build_router(owner_id=OWNER_ID))
+    tg_client = FakeTelethonClient()
+
+    await _feed(dp, bot, build_callback_update(_callback(kb.AddStartCB(target=kb.TARGET_SOURCE).pack())), repos, tg_client)
+    await _feed(
+        dp,
+        bot,
+        build_callback_update(
+            _callback(kb.AddMethodCB(target=kb.TARGET_SOURCE, method="forward").pack())
+        ),
+        repos,
+        tg_client,
+    )
+    # /export нарочно не берём: `panel.export.cmd_export` (Command("export"),
+    # роутер подключён раньше `sources`) перехватил бы его первым — это другой,
+    # реальный командный обработчик, не тот случай, что чинит этот тикет.
+    await _feed(dp, bot, build_message_update(_msg("/foo")), repos, tg_client)
+
+    assert await repos["sources"].list() == []
+    assert (await _fsm_state(dp, bot)) is None
+
+
+async def test_command_during_dialog_search_is_silently_cancelled(dp, bot, repos):
+    dp.include_router(panel.build_router(owner_id=OWNER_ID))
+    dialogs = [FakeDialog(chat_id=-2000, name="Чат", entity=FakeSupergroup())]
+    tg_client = FakeTelethonClient(dialogs=dialogs)
+
+    await _feed(dp, bot, build_callback_update(_callback(kb.AddStartCB(target=kb.TARGET_SOURCE).pack())), repos, tg_client)
+    await _feed(
+        dp,
+        bot,
+        build_callback_update(
+            _callback(kb.AddMethodCB(target=kb.TARGET_SOURCE, method="dialogs").pack())
+        ),
+        repos,
+        tg_client,
+    )
+    await _feed(
+        dp,
+        bot,
+        build_callback_update(_callback(kb.DialogSearchCB(target=kb.TARGET_SOURCE).pack())),
+        repos,
+        tg_client,
+    )
+    await _feed(dp, bot, build_message_update(_msg("/foo")), repos, tg_client)
+
+    assert await repos["sources"].list() == []
+    assert (await _fsm_state(dp, bot)) is None
+
+
+# --- тикет 11 (G02): существующие потоки добавления чата (kb.cancel_kb) -------
+# продолжают работать как раньше (проверка неломки, не только команда-отмена)
+
+
+async def test_manual_entry_cancel_button_still_returns_to_list(dp, bot, repos):
+    dp.include_router(panel.build_router(owner_id=OWNER_ID))
+    tg_client = FakeTelethonClient()
+
+    await _feed(dp, bot, build_callback_update(_callback(kb.AddStartCB(target=kb.TARGET_SOURCE).pack())), repos, tg_client)
+    await _feed(
+        dp,
+        bot,
+        build_callback_update(
+            _callback(kb.AddMethodCB(target=kb.TARGET_SOURCE, method="manual").pack())
+        ),
+        repos,
+        tg_client,
+    )
+    await _feed(
+        dp,
+        bot,
+        build_callback_update(_callback(kb.CancelAddCB(target=kb.TARGET_SOURCE).pack())),
+        repos,
+        tg_client,
+    )
+
+    assert await repos["sources"].list() == []
+    assert (await _fsm_state(dp, bot)) is None

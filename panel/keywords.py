@@ -164,14 +164,30 @@ async def on_add_start(callback: CallbackQuery, callback_data: kb.AddStartCB, st
     await state.update_data(target=callback_data.target)
     await callback.message.edit_text(
         f"Пришлите список {label} — каждый на своей строке.\n"
-        'Слово — как есть, точная фраза — в "кавычках", регулярка — с префиксом re:'
+        'Слово — как есть, точная фраза — в "кавычках", регулярка — с префиксом re:',
+        reply_markup=kb.keyword_cancel_kb(callback_data.target),
     )
     await callback.answer()
+
+
+async def on_keyword_cancel(
+    callback: CallbackQuery,
+    callback_data: kb.KeywordCancelCB,
+    state: FSMContext,
+    keywords: store.KeywordsRepo,
+) -> None:
+    """Тикет 11 (G02): тихая отмена построчного ввода — тот же список, что и
+    после обычного добавления."""
+    await render_keyword_list(callback, state, target=callback_data.target, keywords=keywords)
 
 
 async def on_bulk_text(message: Message, state: FSMContext, keywords: store.KeywordsRepo) -> None:
     data = await state.get_data()
     target = data.get("target", kb.TARGET_KEYWORD)
+    if (message.text or "").startswith("/"):
+        # Тикет 11 (G01): команда во время ожидания ввода = тихая отмена.
+        await render_keyword_list(message, state, target=target, keywords=keywords)
+        return
     is_stop = _TARGETS[target]
     result = await add_keyword_lines(message.text or "", keywords, is_stop=is_stop)
     await message.answer(format_add_result(result, is_stop=is_stop))
@@ -180,11 +196,21 @@ async def on_bulk_text(message: Message, state: FSMContext, keywords: store.Keyw
 
 async def on_check_start(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(KeywordStates.waiting_check_text)
-    await callback.message.edit_text("Пришлите текст для проверки.")
+    await callback.message.edit_text("Пришлите текст для проверки.", reply_markup=kb.check_cancel_kb())
+    await callback.answer()
+
+
+async def on_check_cancel(callback: CallbackQuery, state: FSMContext) -> None:
+    """Тикет 11 (G02): просто прерывает ожидание ввода, списка для возврата нет."""
+    await state.clear()
     await callback.answer()
 
 
 async def on_check_text(message: Message, state: FSMContext, keywords: store.KeywordsRepo) -> None:
+    if (message.text or "").startswith("/"):
+        # Тикет 11 (G01): команда во время ожидания ввода = тихая отмена.
+        await state.clear()
+        return
     await state.clear()
     ruleset = await build_ruleset(keywords)
     result = ruleset.match(message.text or "")
@@ -209,9 +235,14 @@ def build_router() -> Router:
         on_add_start,
         kb.AddStartCB.filter(F.target.in_({kb.TARGET_KEYWORD, kb.TARGET_STOPWORD})),
     )
+    router.callback_query.register(
+        on_keyword_cancel,
+        kb.KeywordCancelCB.filter(F.target.in_({kb.TARGET_KEYWORD, kb.TARGET_STOPWORD})),
+    )
     router.message.register(on_bulk_text, KeywordStates.waiting_bulk)
 
     router.callback_query.register(on_check_start, kb.CheckStartCB.filter())
+    router.callback_query.register(on_check_cancel, kb.CheckCancelCB.filter())
     router.message.register(on_check_text, KeywordStates.waiting_check_text)
 
     return router

@@ -7,6 +7,8 @@ import itertools
 
 import pytest
 from aiogram import Dispatcher
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.storage.base import StorageKey
 from aiogram.fsm.storage.memory import MemoryStorage
 
 import panel
@@ -60,6 +62,11 @@ def bot():
 
 async def _feed(dp, bot, update, repos):
     await dp.feed_update(bot, update, **repos)
+
+
+async def _fsm_state(dp, bot):
+    key = StorageKey(bot_id=bot.id, chat_id=OWNER_ID, user_id=OWNER_ID)
+    return await FSMContext(storage=dp.storage, key=key).get_state()
 
 
 # --- parse_keyword_line -------------------------------------------------
@@ -181,3 +188,79 @@ async def test_bulk_add_end_to_end_via_dispatcher(dp, bot, repos):
 
     kws = await repos["keywords"].list(is_stop=False)
     assert {k.pattern for k in kws} == {"ремонт", "срочно"}
+
+
+# --- тикет 11 (G01): команда во время ожидания ввода = тихая отмена --------
+
+
+async def test_command_during_bulk_add_does_not_add_anything(dp, bot, repos):
+    await _feed(dp, bot, build_message_update(_msg(kb.BTN_KEYWORDS)), repos)
+    await _feed(
+        dp, bot, build_callback_update(_callback(kb.AddStartCB(target=kb.TARGET_KEYWORD).pack())), repos
+    )
+    await _feed(dp, bot, build_message_update(_msg("/start")), repos)
+
+    assert await repos["keywords"].list(is_stop=False) == []
+    assert (await _fsm_state(dp, bot)) is None
+
+
+async def test_command_during_check_text_does_not_answer_with_result(dp, bot, repos):
+    await repos["keywords"].add("word", "ремонт")
+    await _feed(dp, bot, build_callback_update(_callback(kb.CheckStartCB().pack())), repos)
+    await _feed(dp, bot, build_message_update(_msg("/export ремонт")), repos)
+
+    from aiogram.methods import SendMessage
+
+    sent = [c for c in bot.session.calls if isinstance(c, SendMessage) and c.text]
+    assert not any("сработало" in c.text for c in sent)
+    assert (await _fsm_state(dp, bot)) is None
+
+
+# --- тикет 11 (G02): кнопка «‹ Отмена» ---------------------------------------
+
+
+async def test_bulk_add_prompt_has_cancel_button(dp, bot, repos):
+    await _feed(
+        dp, bot, build_callback_update(_callback(kb.AddStartCB(target=kb.TARGET_KEYWORD).pack())), repos
+    )
+    from aiogram.methods import EditMessageText
+
+    edits = [c for c in bot.session.calls if isinstance(c, EditMessageText)]
+    texts = [btn.text for row in edits[-1].reply_markup.inline_keyboard for btn in row]
+    assert kb.BTN_CANCEL in texts
+
+
+async def test_keyword_cancel_button_returns_to_list_without_adding(dp, bot, repos):
+    await _feed(
+        dp, bot, build_callback_update(_callback(kb.AddStartCB(target=kb.TARGET_KEYWORD).pack())), repos
+    )
+    await _feed(
+        dp,
+        bot,
+        build_callback_update(_callback(kb.KeywordCancelCB(target=kb.TARGET_KEYWORD).pack())),
+        repos,
+    )
+
+    assert await repos["keywords"].list(is_stop=False) == []
+    assert (await _fsm_state(dp, bot)) is None
+
+
+async def test_check_start_prompt_has_cancel_button(dp, bot, repos):
+    await _feed(dp, bot, build_callback_update(_callback(kb.CheckStartCB().pack())), repos)
+    from aiogram.methods import EditMessageText
+
+    edits = [c for c in bot.session.calls if isinstance(c, EditMessageText)]
+    texts = [btn.text for row in edits[-1].reply_markup.inline_keyboard for btn in row]
+    assert kb.BTN_CANCEL in texts
+
+
+async def test_check_cancel_button_clears_state_without_result(dp, bot, repos):
+    await repos["keywords"].add("word", "ремонт")
+    await _feed(dp, bot, build_callback_update(_callback(kb.CheckStartCB().pack())), repos)
+    await _feed(dp, bot, build_callback_update(_callback(kb.CheckCancelCB().pack())), repos)
+
+    assert (await _fsm_state(dp, bot)) is None
+    from aiogram.methods import SendMessage
+
+    sent = [c for c in bot.session.calls if isinstance(c, SendMessage) and c.text]
+    assert not any("сработало" in c.text for c in sent)

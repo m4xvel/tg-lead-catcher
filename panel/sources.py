@@ -208,7 +208,13 @@ async def _show_dialogs_page(
 # --- хендлеры (регистрируются фабрикой `build_router`, см. низ файла) --------
 
 
-async def cmd_start(message: Message, settings: store.SettingsRepo) -> None:
+async def cmd_start(message: Message, state: FSMContext, settings: store.SettingsRepo) -> None:
+    # Тикет 11 (G01): `/start` перехватывается этим хендлером раньше, чем
+    # `waiting_manual`/`waiting_forward`/`waiting_search` (тот же роутер,
+    # `cmd_start` зарегистрирован первым, без фильтра состояния) — очищаем
+    # FSM state и здесь, иначе пользователь тихо остаётся в незавершённом
+    # ожидании ввода после возврата в главное меню.
+    await state.clear()
     paused = (await settings.get("monitoring_paused", "0")) == "1"
     await message.answer(
         "👋 Панель tg-lead-catcher.", reply_markup=kb.main_menu_kb(monitoring_paused=paused)
@@ -426,9 +432,20 @@ async def on_dialog_search_prompt(
     await callback.answer()
 
 
-async def on_dialog_search_text(message: Message, state: FSMContext, tg_client) -> None:
+async def on_dialog_search_text(
+    message: Message,
+    state: FSMContext,
+    tg_client,
+    sources: store.SourcesRepo,
+    receivers: store.ReceiversRepo,
+) -> None:
     data = await state.get_data()
     target = data.get("target", kb.TARGET_SOURCE)
+    if (message.text or "").startswith("/"):
+        # Тикет 11 (G01): команда во время ожидания ввода = тихая отмена, тот же
+        # вид, что и кнопка «‹ Отмена» этого потока (kb.cancel_kb -> on_cancel_add).
+        await render_list(message, state, target=target, sources=sources, receivers=receivers)
+        return
     await state.set_state(AddChatStates.browsing_dialogs)
     await _show_dialogs_page(
         message, state, target=target, tg_client=tg_client, offset=0, query=message.text
@@ -459,6 +476,10 @@ async def on_manual_text(
 ) -> None:
     data = await state.get_data()
     target = data.get("target", kb.TARGET_SOURCE)
+    if (message.text or "").startswith("/"):
+        # Тикет 11 (G01): команда во время ожидания ввода = тихая отмена.
+        await render_list(message, state, target=target, sources=sources, receivers=receivers)
+        return
     try:
         resolved = await resolve_manual_chat(message.bot, message.text or "")
     except ChatResolutionError as exc:
@@ -477,6 +498,10 @@ async def on_forward(
 ) -> None:
     data = await state.get_data()
     target = data.get("target", kb.TARGET_SOURCE)
+    if (message.text or "").startswith("/"):
+        # Тикет 11 (G01): команда во время ожидания ввода = тихая отмена.
+        await render_list(message, state, target=target, sources=sources, receivers=receivers)
+        return
     resolved = extract_forwarded_chat(message)
     if resolved is None:
         await message.answer(
