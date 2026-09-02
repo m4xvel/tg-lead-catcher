@@ -231,6 +231,13 @@ delivery_queue(id, hit_id, receiver_chat_id, status[pending|sent|failed],
   желании почистить это в следующем тикете.
 - Тесты: `python -m pytest tests/panel/test_settings.py tests/panel/test_keywords.py
   tests/panel/test_panel_flows.py -q`.
+- **Репар (слепая приёмка G4 нашла разрыв):** `/export` был назван в исходной цитате
+  наравне с `/start`, но `panel/export.py:cmd_export` (`Command("export")`, без
+  фильтра состояния, роутер подключён раньше `panel.settings`/`panel.sources`)
+  перехватывал апдейт первым — экспорт реально уходил, но FSM state не чистился.
+  Исправлено симметрично `cmd_start`: `panel.export.cmd_export(message, state:
+  FSMContext, sources, keywords, receivers) -> None` теперь тоже зовёт
+  `await state.clear()` первым действием, отправка экспорта не изменилась.
 
 ### Из тикета 05 — панель: ключи, статистика, экспорт
 

@@ -14,7 +14,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.methods import AnswerCallbackQuery, GetChat, SendMessage
+from aiogram.methods import AnswerCallbackQuery, GetChat, SendDocument, SendMessage
 from aiogram.types import (
     Chat,
     Message,
@@ -26,6 +26,7 @@ from telethon.errors import ChannelPrivateError
 import panel
 import store
 from panel import keyboards as kb
+from panel.settings import SettingsStates
 from panel.sources import AddChatStates
 
 from tests.panel.conftest import (
@@ -599,9 +600,12 @@ async def test_command_during_forward_wait_is_silently_cancelled(dp, bot, repos)
         repos,
         tg_client,
     )
-    # /export нарочно не берём: `panel.export.cmd_export` (Command("export"),
-    # роутер подключён раньше `sources`) перехватил бы его первым — это другой,
-    # реальный командный обработчик, не тот случай, что чинит этот тикет.
+    # /export нарочно не берём здесь: `panel.export.cmd_export` (Command("export"),
+    # роутер подключён раньше `sources`) перехватывает его первым — это другой,
+    # реальный командный обработчик, не тихая отмена через `on_settings_value`/
+    # `AddChatStates`-хендлеры. Этот случай (команда с собственным обработчиком
+    # поверх незавершённого ожидания) отдельно покрыт ниже —
+    # `test_export_during_settings_wait_sends_document_and_clears_state`.
     await _feed(dp, bot, build_message_update(_msg("/foo")), repos, tg_client)
 
     assert await repos["sources"].list() == []
@@ -663,4 +667,25 @@ async def test_manual_entry_cancel_button_still_returns_to_list(dp, bot, repos):
     )
 
     assert await repos["sources"].list() == []
+    assert (await _fsm_state(dp, bot)) is None
+
+
+# --- тикет 11 (G4, доводка): /export во время незавершённого ожидания --------
+# ввода — у /export свой обработчик (Command("export"), без фильтра
+# состояния), роутер `panel.export` подключён раньше `settings`/`sources`/
+# `receivers` (см. `panel/__init__.py`) — экспорт реально уходит, а FSM state
+# должен быть тихо снят, как и в `panel.sources.cmd_start`.
+
+
+async def test_export_during_settings_wait_sends_document_and_clears_state(dp, bot, repos):
+    dp.include_router(panel.build_router(owner_id=OWNER_ID))
+    tg_client = FakeTelethonClient()
+
+    key = StorageKey(bot_id=bot.id, chat_id=OWNER_ID, user_id=OWNER_ID)
+    await FSMContext(storage=dp.storage, key=key).set_state(SettingsStates.waiting_value)
+
+    await _feed(dp, bot, build_message_update(_msg("/export")), repos, tg_client)
+
+    sent = [c for c in bot.session.calls if isinstance(c, SendDocument)]
+    assert len(sent) == 1
     assert (await _fsm_state(dp, bot)) is None

@@ -10,6 +10,7 @@ import json
 
 from aiogram import Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, Message
 
 import store
@@ -37,10 +38,18 @@ async def build_export_payload(
 
 async def cmd_export(
     message: Message,
+    state: FSMContext,
     sources: store.SourcesRepo,
     keywords: store.KeywordsRepo,
     receivers: store.ReceiversRepo,
 ) -> None:
+    # Тикет 11 (G01/G4): `/export` — команда без фильтра состояния, роутер
+    # подключён раньше `settings`/`sources`/`receivers` (см. `panel/__init__.py`)
+    # — перехватывает апдейт первым, даже когда FSM ждёт свободный текст
+    # (например `SettingsStates.waiting_value`). Экспорт по-прежнему реально
+    # отправляется, но незавершённое ожидание нужно тихо снять — тот же
+    # принцип, что и в `panel.sources.cmd_start`.
+    await state.clear()
     payload = await build_export_payload(sources=sources, keywords=keywords, receivers=receivers)
     body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
     document = BufferedInputFile(body, filename=EXPORT_FILENAME)
